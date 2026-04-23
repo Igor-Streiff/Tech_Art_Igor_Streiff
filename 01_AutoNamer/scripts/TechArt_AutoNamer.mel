@@ -1,0 +1,173 @@
+/*
+    ============================================================================
+    PIPELINE TOOL: TechArt AutoNamer (UE5/Industry Standard)
+    Author: Igor G. Streiff
+    Development: TechArt Studio - Max Sarlija Academy
+    
+    Features:
+    1. Automatic naming by node type (SM_, SK_, M_, CTRL_, etc.)
+    2. Character cleaning: removes spaces, special characters, and Maya numerical suffixes.
+    3. Automatic detection: Side (L/R) and High/Low Poly suffixes.
+    4. Automatic Material renaming linked to meshes.
+    5. Integrated User Interface (UI) with feedback log.
+    ============================================================================
+*/
+
+// Function to clean forbidden or non-standard characters
+global proc string cleanNameString(string $name) {
+    string $clean = `substituteAllString $name " " "_"`;
+    $clean = `substituteAllString $clean "ñ" "n"`;
+    $clean = `substituteAllString $clean "Ñ" "N"`;
+    $clean = `substituteAllString $clean "á" "a"`;
+    $clean = `substituteAllString $clean "é" "e"`;
+    $clean = `substituteAllString $clean "í" "i"`;
+    $clean = `substituteAllString $clean "ó" "o"`;
+    $clean = `substituteAllString $clean "ú" "u"`;
+    $clean = `encodeString $clean`; 
+    return $clean;
+}
+
+global proc AN_ExecuteNaming() {
+    string $selection[] = `ls -sl`;
+    string $report = "";
+    int $successCount = 0;
+    int $errorCount = 0;
+
+    if (size($selection) == 0) {
+        warning "Please select at least one object.";
+        return;
+    }
+
+    for ($obj in $selection) {
+        if (!`objExists $obj`) continue;
+
+        string $prefix = "GRP_";
+        string $suffix = "";
+        string $side = "";
+        string $polySuffix = "";
+
+        // 1. Identification by Node Type
+        string $shapes[] = `listRelatives -s $obj`;
+        string $nodeType = `nodeType $obj`;
+        if (size($shapes) > 0) $nodeType = `nodeType $shapes[0]`;
+
+        if ($nodeType == "mesh") {
+            $prefix = "SM_";
+        } else if ($nodeType == "joint") {
+            $prefix = "SK_"; $suffix = "_JNT";
+        } else if ($nodeType == "nurbsCurve") {
+            $prefix = "CTRL_"; 
+        } else if ($nodeType == "camera") {
+            $prefix = "CAM_";
+        } else if (`gmatch $nodeType "*Light*"`) {
+            $prefix = "LIT_";
+        }
+
+        // 2. Side Detection (Check before cleaning baseName)
+        if (`gmatch $obj "*_L*"` || `gmatch $obj "*left*"` || `gmatch $obj "*Left*"`) $side = "_L";
+        else if (`gmatch $obj "*_R*"` || `gmatch $obj "*right*"` || `gmatch $obj "*Right*"`) $side = "_R";
+
+        // 3. High/Low Poly Detection
+        if (`gmatch $obj "*_high*"` || `gmatch $obj "*HIGH*"` || `gmatch $obj "*High*"`) $polySuffix = "_HP";
+        else if (`gmatch $obj "*_low*"` || `gmatch $obj "*LOW*"` || `gmatch $obj "*Low*"`) $polySuffix = "_LP";
+
+        // 4. Base Name Extraction (Robust Anti-Stacking)
+        string $baseName = $obj;
+        // Strip hierarchy and namespace
+        $baseName = `match "[^|:]+$" $baseName`;
+        
+        // RECURSIVE PREFIX STRIPPING (Cleans LIT_LIT_GRP_ etc.)
+        int $loopSafe = 0;
+        while ($loopSafe < 10) {
+            string $old = $baseName;
+            // Matches any sequence of uppercase letters followed by underscore at start
+            $baseName = `substitute "^[A-Z0-9]+_" $baseName ""`;
+            if ($old == $baseName) break;
+            $loopSafe++;
+        }
+
+        // RECURSIVE SUFFIX STRIPPING (Cleans _L_JNT etc.)
+        $loopSafe = 0;
+        while ($loopSafe < 10) {
+            string $old = $baseName;
+            // Matches underscore followed by uppercase letters at end
+            $baseName = `substitute "_[A-Z0-9]+$" $baseName ""`;
+            if ($old == $baseName) break;
+            $loopSafe++;
+        }
+
+        // Strip Maya's instance numbers
+        $baseName = `substitute "[0-9]+$" $baseName ""`;
+        // Final cleaning
+        $baseName = cleanNameString($baseName);
+
+        // 5. Build Final Name
+        string $newName = ($prefix + $baseName + $side + $polySuffix + $suffix);
+
+        // 6. Material Renaming
+        if ($nodeType == "mesh" && size($shapes) > 0) {
+            string $sgs[] = `listConnections -type "shadingEngine" $shapes[0]`;
+            if (size($sgs) > 0) {
+                string $material[] = `listConnections ($sgs[0] + ".surfaceShader")`;
+                if (size($material) > 0) {
+                    string $newMatName = ("M_" + $baseName);
+                    if ($material[0] != $newMatName) {
+                        if (catchQuiet(`rename $material[0] $newMatName`) == 0) {
+                            $report += ("  [Mat] " + $material[0] + " -> " + $newMatName + "\n");
+                        }
+                    }
+                }
+            }
+        }
+
+        // 7. Object Renaming
+        if ($obj != $newName) {
+            int $err = catchQuiet(`rename $obj $newName`);
+            if ($err == 0) {
+                $report += ("  [Obj] " + $obj + " -> " + $newName + "\n");
+                $successCount++;
+            } else {
+                $report += ("  [Error] Could not rename " + $obj + "\n");
+                $errorCount++;
+            }
+        } else {
+            $report += ("  [OK] " + $obj + " (Correct)\n");
+            $successCount++;
+        }
+    }
+    
+    // Update Feedback UI
+    string $summary = ("Success: " + $successCount + " | Errors: " + $errorCount + "\n" + $report);
+    scrollField -e -text $summary AN_FeedbackField;
+}
+
+// 8. User Interface (UI)
+global proc AutoNamerUI() {
+    if (`window -exists TechArtNamerWindow`) deleteUI TechArtNamerWindow;
+
+    window -title "TechArt AutoNamer" -widthHeight 320 380 TechArtNamerWindow;
+    columnLayout -adjustableColumn true -rowSpacing 10 -columnOffset "both" 15;
+    
+    separator -height 10 -style "none";
+    text -label "AUTOMATIC NAMING TOOL" -font "boldLabelFont";
+    text -label "by Igor G. Streiff" -align "center";
+    separator -height 5;
+
+    button -label "RENAME SELECTION" 
+           -height 45 
+           -backgroundColor 0.2 0.5 0.8
+           -command "AN_ExecuteNaming()";
+
+    text -label "Results Log:" -align "left" -font "smallBoldLabelFont";
+    scrollField -height 150 -editable false -wordWrap true -text "Waiting for selection..." AN_FeedbackField;
+
+    text -label "Cleans: Spaces, Special Chars, Maya Suffixes.\nDetects: Side (L/R), High/Low Poly, Materials." 
+         -align "center" 
+         -font "smallPlainLabelFont";
+    
+    separator -height 5 -style "none";
+    showWindow TechArtNamerWindow;
+}
+
+// Execute UI
+AutoNamerUI();
