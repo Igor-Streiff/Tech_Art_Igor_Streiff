@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Asset Audit — {{SCENE}} {{VERSION}}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f1117;color:#c9cdd4;line-height:1.5}
+
+/* Header */
+.header{padding:28px 40px 20px;border-bottom:1px solid #1e2330;display:flex;justify-content:space-between;align-items:flex-end}
+.header-left h1{font-weight:400;font-size:20px;color:#fff}
+.header-left h1 span{color:#6b7280;font-size:13px;margin-left:12px;font-weight:400}
+.header-left p{color:#6b7280;font-size:13px;margin-top:4px}
+.header-right{color:#4b5563;font-size:11px;text-align:right;letter-spacing:.3px}
+
+/* Summary Cards */
+.cards{display:flex;gap:16px;padding:24px 40px}
+.card{background:#161a25;border:1px solid #1e2330;border-radius:8px;padding:18px 22px;flex:1;min-width:0}
+.card .label{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:#6b7280;margin-bottom:6px}
+.card .value{font-size:28px;font-weight:600;color:#e2e5ea}
+.card.warn .value{color:#f87171}
+
+/* Controls */
+.controls{padding:16px 40px;display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+.filter-group{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.search{background:#161a25;border:1px solid #1e2330;border-radius:6px;padding:8px 14px;color:#c9cdd4;font-size:13px;width:280px;outline:none}
+.search:focus{border-color:#3b82f6}
+.btn{background:#161a25;border:1px solid #1e2330;border-radius:6px;padding:7px 14px;color:#505868;font-size:12px;cursor:pointer;transition:all .2s;font-weight:500}
+.btn:hover{background:#1a1f2e;color:#9ca3af}
+
+/* Active filter states — very visible */
+.btn.on-high{background:#7f1d1d;border-color:#ef4444;color:#fca5a5;box-shadow:0 0 8px rgba(239,68,68,.35)}
+.btn.on-med{background:#78350f;border-color:#f59e0b;color:#fde68a;box-shadow:0 0 8px rgba(245,158,11,.35)}
+.btn.on-low{background:#1e3a5f;border-color:#3b82f6;color:#93c5fd;box-shadow:0 0 8px rgba(59,130,246,.35)}
+.btn.on-tag{background:#1a2e1a;border-color:#22c55e;color:#86efac;box-shadow:0 0 8px rgba(34,197,94,.3)}
+.sep{color:#252a38;margin:0 2px;user-select:none}
+
+/* Tabs */
+.tabs{padding:0 40px;display:flex;gap:0;border-bottom:1px solid #1e2330;margin-top:8px}
+.tab{padding:10px 20px;font-size:13px;color:#6b7280;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+.tab:hover{color:#c9cdd4}
+.tab.active{color:#fff;border-bottom-color:#3b82f6}
+
+/* Layout: Table + Detail panel */
+.content{display:flex;padding:0 40px 40px;gap:0;margin-top:16px;min-height:400px}
+.table-side{flex:1;overflow-x:auto;min-width:0}
+.detail-side{width:340px;flex-shrink:0;margin-left:20px;display:none}
+.detail-side.open{display:block}
+.detail-panel{background:#161a25;border:1px solid #1e2330;border-radius:8px;padding:20px;position:sticky;top:20px}
+.detail-panel h3{font-size:14px;color:#fff;font-weight:500;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #1e2330}
+.detail-panel .close-btn{float:right;background:none;border:none;color:#6b7280;cursor:pointer;font-size:16px}
+.detail-panel .close-btn:hover{color:#fff}
+.detail-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #13151d;font-size:13px}
+.detail-row .dk{color:#6b7280}
+.detail-row .dv{color:#e2e5ea;text-align:right;max-width:200px;overflow-wrap:break-word;word-break:normal}
+.detail-related{margin-top:16px;padding-top:14px;border-top:1px solid #1e2330}
+.detail-related h4{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+
+/* Table */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 14px;color:#6b7280;font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid #1e2330;cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{color:#c9cdd4}
+th .arrow{margin-left:4px;font-size:10px}
+td{padding:10px 14px;border-bottom:1px solid #13151d;color:#c9cdd4}
+tr{cursor:pointer;transition:background .1s}
+tr:hover td{background:#161a25}
+tr.selected td{background:#1a2440;border-bottom-color:#1e3050}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.badge.high{background:#7f1d1d;color:#fca5a5}
+.badge.med{background:#78350f;color:#fde68a}
+.badge.low{background:#1e3a5f;color:#93c5fd}
+.tag-cell{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;background:#1e2330;color:#9ca3af}
+.path{color:#6b7280;font-size:12px}
+.empty{padding:40px;text-align:center;color:#4b5563;font-size:14px}
+.count{color:#6b7280;font-size:12px;margin-left:auto;padding:10px 0}
+
+/* Footer */
+.footer{padding:16px 40px;border-top:1px solid #1e2330;text-align:right;color:#3a3f4d;font-size:11px;letter-spacing:.3px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>Asset Audit Dashboard <span>{{SCENE}} · {{VERSION}} · {{TIMESTAMP}}</span></h1>
+    <p>Technical performance report — generated automatically</p>
+  </div>
+  <div class="header-right">By Igor G. Streiff</div>
+</div>
+
+<div class="cards">
+  <div class="card"><div class="label">Meshes</div><div class="value" id="c-mesh">0</div></div>
+  <div class="card"><div class="label">Textures</div><div class="value" id="c-tex">0</div></div>
+  <div class="card"><div class="label">Materials</div><div class="value" id="c-mat">0</div></div>
+  <div class="card"><div class="label">Lights</div><div class="value" id="c-light">0</div></div>
+  <div class="card"><div class="label">Audio</div><div class="value" id="c-audio">0</div></div>
+  <div class="card"><div class="label">Blueprints</div><div class="value" id="c-bp">0</div></div>
+  <div class="card warn"><div class="label">Warnings</div><div class="value" id="c-warn">0</div></div>
+</div>
+
+<div class="controls">
+  <div class="filter-group">
+    <input type="text" class="search" id="search" placeholder="Search by name, tag or path...">
+    <button class="btn" onclick="togglePrio('High')" id="f-high">● High</button>
+    <button class="btn" onclick="togglePrio('Medium')" id="f-med">● Medium</button>
+    <button class="btn" onclick="togglePrio('Low')" id="f-low">● Low</button>
+    <span class="sep">|</span>
+  </div>
+  <div class="filter-group">
+    <button class="btn" onclick="toggleTag('MESH_LOD')" id="f-mesh_lod">MESH_LOD</button>
+    <button class="btn" onclick="toggleTag('MESH_SLOTS')" id="f-mesh_slots">MESH_SLOTS</button>
+    <button class="btn" onclick="toggleTag('MESH_HEAVY')" id="f-mesh_heavy">MESH_HEAVY</button>
+    <button class="btn" onclick="toggleTag('MESH_NGON')" id="f-mesh_ngon">MESH_NGON</button>
+    <button class="btn" onclick="toggleTag('MESH_COLLISION')" id="f-mesh_collision">MESH_COLLISION</button>
+    <button class="btn" onclick="toggleTag('TEX_LARGE')" id="f-tex_large">TEX_LARGE</button>
+    <button class="btn" onclick="toggleTag('MAT_TRANSLUCENT')" id="f-mat_translucent">MAT_TRANSLUCENT</button>
+    <button class="btn" onclick="toggleTag('FOG_VOLUMETRIC')" id="f-fog_volumetric">FOG_VOLUMETRIC</button>
+    <button class="btn" onclick="toggleTag('AUDIO_INLINE')" id="f-audio_inline">AUDIO_INLINE</button>
+    <button class="btn" onclick="toggleTag('ORPHAN')" id="f-orphan">ORPHAN</button>
+  </div>
+  <div class="count" style="margin-left:auto; align-self:center;" id="row-count"></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('warnings')">Warnings</div>
+  <div class="tab" onclick="switchTab('meshes')">Meshes</div>
+  <div class="tab" onclick="switchTab('textures')">Textures</div>
+  <div class="tab" onclick="switchTab('materials')">Materials</div>
+  <div class="tab" onclick="switchTab('lights')">Lights</div>
+  <div class="tab" onclick="switchTab('environment')">Environment</div>
+  <div class="tab" onclick="switchTab('audio')">Audio</div>
+  <div class="tab" onclick="switchTab('blueprints')">Blueprints</div>
+</div>
+
+<div class="content">
+  <div class="table-side">
+    <table><thead id="thead"></thead><tbody id="tbody"></tbody></table>
+    <div class="empty" id="empty" style="display:none">No results match your filters.</div>
+  </div>
+  <div class="detail-side" id="detail-side">
+    <div class="detail-panel">
+      <button class="close-btn" onclick="closeDetail()">✕</button>
+      <h3 id="detail-title">Details</h3>
+      <div id="detail-body"></div>
+      <div class="detail-related" id="detail-related" style="display:none">
+        <h4>Related Asset</h4>
+        <div id="detail-related-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">By Igor G. Streiff — UE Asset Auditor Tool</div>
+
+<script>
+const DATA = {{JSON_DATA}};
+let currentTab = 'warnings';
+let sortCol = null, sortAsc = true;
+let prioFilters = new Set();
+let tagFilters = new Set();
+let filteredRows = [];
+
+document.getElementById('c-mesh').textContent = DATA.summary.meshes;
+document.getElementById('c-tex').textContent = DATA.summary.textures;
+document.getElementById('c-mat').textContent = DATA.summary.materials;
+document.getElementById('c-light').textContent = DATA.summary.lights || 0;
+document.getElementById('c-audio').textContent = DATA.summary.audio || 0;
+document.getElementById('c-bp').textContent = DATA.summary.blueprints || 0;
+document.getElementById('c-warn').textContent = DATA.summary.warnings || 0;
+
+const COLUMNS = {
+  warnings: [
+    {key:'priority',label:'Priority'},
+    {key:'tag',label:'Type'},
+    {key:'msg',label:'Description'}
+  ],
+  meshes: [
+    {key:'name',label:'Name'},
+    {key:'vertices',label:'Vertices'},
+    {key:'triangles',label:'Triangles'},
+    {key:'lods',label:'LODs'},
+    {key:'nanite',label:'Nanite'},
+    {key:'ngon_risk',label:'Ngon Risk'},
+    {key:'complex_collision',label:'Complex Collision'},
+    {key:'material_slots',label:'Mat Slots'},
+    {key:'path',label:'Path'}
+  ],
+  textures: [
+    {key:'name',label:'Name'},
+    {key:'width',label:'Width'},
+    {key:'height',label:'Height'},
+    {key:'path',label:'Path'}
+  ],
+  materials: [
+    {key:'name',label:'Name'},
+    {key:'blend_mode',label:'Blend Mode'},
+    {key:'path',label:'Path'}
+  ],
+  lights: [
+    {key:'name',label:'Name'},
+    {key:'type',label:'Type'}
+  ],
+  environment: [
+    {key:'name',label:'Name'},
+    {key:'type',label:'Type'},
+    {key:'unbounded',label:'Unbounded'},
+    {key:'volumetric_fog',label:'Volumetric Fog'}
+  ],
+  audio: [
+    {key:'name',label:'Name'},
+    {key:'inline',label:'Forced Inline'},
+    {key:'path',label:'Path'}
+  ],
+  blueprints: [
+    {key:'name',label:'Name'},
+    {key:'path',label:'Path'}
+  ]
+};
+
+function switchTab(tab){
+  currentTab=tab; sortCol=null; sortAsc=true;
+  closeDetail();
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    t.classList.toggle('active',['warnings','meshes','textures','materials','lights','environment','audio','blueprints'][i]===tab);
+  });
+  render();
+}
+
+function togglePrio(p){
+  prioFilters.has(p)?prioFilters.delete(p):prioFilters.add(p);
+  let id=p==='High'?'f-high':p==='Medium'?'f-med':'f-low';
+  let cls=p==='High'?'on-high':p==='Medium'?'on-med':'on-low';
+  let el=document.getElementById(id);
+  el.classList.toggle(cls);
+  render();
+}
+
+function toggleTag(t){
+  tagFilters.has(t)?tagFilters.delete(t):tagFilters.add(t);
+  let el=document.getElementById('f-'+t.toLowerCase());
+  if(el) el.classList.toggle('on-tag');
+  render();
+}
+
+function render(){
+  let cols=COLUMNS[currentTab]||[];
+  let rows=DATA[currentTab]||[];
+  let q=document.getElementById('search').value.toLowerCase();
+
+  rows=rows.filter(r=>{
+    if(q){let s=JSON.stringify(r).toLowerCase();if(!s.includes(q))return false;}
+    if(currentTab==='warnings'){
+      if(prioFilters.size>0&&!prioFilters.has(r.priority))return false;
+      if(tagFilters.size>0&&!tagFilters.has(r.tag))return false;
+    }
+    return true;
+  });
+
+  if(sortCol!==null){
+    let key=cols[sortCol].key;
+    rows=[...rows].sort((a,b)=>{
+      let va=a[key],vb=b[key];
+      if(typeof va==='number')return sortAsc?va-vb:vb-va;
+      if(typeof va==='boolean')return sortAsc?(va?1:0)-(vb?1:0):(vb?1:0)-(va?1:0);
+      return sortAsc?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va));
+    });
+  }
+
+  filteredRows=rows;
+
+  let th='<tr>';
+  cols.forEach((c,i)=>{
+    let arrow=sortCol===i?(sortAsc?'▲':'▼'):'';
+    th+='<th onclick="sortBy('+i+')">'+c.label+'<span class="arrow">'+arrow+'</span></th>';
+  });
+  th+='</tr>';
+  document.getElementById('thead').innerHTML=th;
+
+  let tb='';
+  rows.forEach((r,idx)=>{
+    tb+='<tr onclick="selectRow('+idx+')" id="row-'+idx+'">';
+    cols.forEach(c=>{
+      let v=r[c.key];
+      if(c.key==='priority'){
+        let cls=v==='High'?'high':v==='Medium'?'med':'low';
+        tb+='<td><span class="badge '+cls+'">'+v+'</span></td>';
+      } else if(c.key==='tag'){
+        tb+='<td><span class="tag-cell">'+v+'</span></td>';
+      } else if(c.key==='path'){
+        tb+='<td><span class="path">'+v+'</span></td>';
+      } else if(c.key==='nanite'||c.key==='ngon_risk'||c.key==='unbounded'||c.key==='volumetric_fog'||c.key==='complex_collision'||c.key==='inline'){
+        let good=c.key==='nanite';
+        if(v===undefined||v===null){tb+='<td>—</td>';
+        }else{tb+='<td>'+(v?'<span class="badge '+(good?'low':'high')+'">YES</span>':'<span class="badge '+(good?'high':'low')+'">NO</span>')+'</td>';}
+      } else if(typeof v==='number'){
+        tb+='<td>'+v.toLocaleString()+'</td>';
+      } else {
+        tb+='<td>'+v+'</td>';
+      }
+    });
+    tb+='</tr>';
+  });
+  document.getElementById('tbody').innerHTML=tb;
+  document.getElementById('empty').style.display=rows.length===0?'block':'none';
+  document.getElementById('row-count').textContent=rows.length+' items';
+}
+
+function sortBy(i){
+  if(sortCol===i){sortAsc=!sortAsc;}else{sortCol=i;sortAsc=true;}
+  render();
+}
+
+function selectRow(idx){
+  document.querySelectorAll('tr.selected').forEach(t=>t.classList.remove('selected'));
+  let el=document.getElementById('row-'+idx);
+  if(el) el.classList.add('selected');
+
+  let row=filteredRows[idx];
+  if(!row) return;
+
+  let panel=document.getElementById('detail-side');
+  panel.classList.add('open');
+
+  let title=row.name||row.msg||'Details';
+  if(title.length>40) title=title.substring(0,40)+'...';
+  document.getElementById('detail-title').textContent=title;
+
+  let body='';
+  for(let k in row){
+    let v=row[k];
+    let label=k.charAt(0).toUpperCase()+k.slice(1).replace(/_/g,' ');
+    if(k==='priority'){
+      let cls=v==='High'?'high':v==='Medium'?'med':'low';
+      body+='<div class="detail-row"><span class="dk">'+label+'</span><span class="dv"><span class="badge '+cls+'">'+v+'</span></span></div>';
+    } else if(k==='nanite'){
+      body+='<div class="detail-row"><span class="dk">'+label+'</span><span class="dv">'+(v?'<span class="badge low">ON</span>':'<span class="badge high">OFF</span>')+'</span></div>';
+    } else {
+      body+='<div class="detail-row"><span class="dk">'+label+'</span><span class="dv">'+v+'</span></div>';
+    }
+  }
+  document.getElementById('detail-body').innerHTML=body;
+
+  // Cross-reference: if warning, find related asset
+  let relPanel=document.getElementById('detail-related');
+  let relBody=document.getElementById('detail-related-body');
+  relPanel.style.display='none';
+  relBody.innerHTML='';
+
+  if(currentTab==='warnings' && row.msg){
+    let match=row.msg.match(/'([^']+)'/);
+    if(match){
+      let assetName=match[1];
+      let found=null;
+      let source='';
+      ['meshes','textures','materials'].forEach(cat=>{
+        if(found) return;
+        let item=(DATA[cat]||[]).find(a=>a.name===assetName);
+        if(item){found=item;source=cat;}
+      });
+      if(found){
+        relPanel.style.display='block';
+        let rb='<div class="detail-row"><span class="dk">Source</span><span class="dv">'+source+'</span></div>';
+        for(let k in found){
+          let v=found[k];
+          let label=k.charAt(0).toUpperCase()+k.slice(1).replace(/_/g,' ');
+          if(k==='nanite'){
+            rb+='<div class="detail-row"><span class="dk">'+label+'</span><span class="dv">'+(v?'<span class="badge low">ON</span>':'<span class="badge high">OFF</span>')+'</span></div>';
+          } else {
+            rb+='<div class="detail-row"><span class="dk">'+label+'</span><span class="dv">'+v+'</span></div>';
+          }
+        }
+        relBody.innerHTML=rb;
+      }
+    }
+  }
+}
+
+function closeDetail(){
+  document.getElementById('detail-side').classList.remove('open');
+  document.querySelectorAll('tr.selected').forEach(t=>t.classList.remove('selected'));
+}
+
+document.getElementById('search').addEventListener('input',render);
+render();
+</script>
+</body>
+</html>

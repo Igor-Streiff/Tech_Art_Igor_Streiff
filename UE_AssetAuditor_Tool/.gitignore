@@ -1,0 +1,7 @@
+# Ignore generated reports but keep the directory
+Reports/*
+!Reports/.gitkeep
+
+# Ignore python cache
+__pycache__/
+*.pyc
