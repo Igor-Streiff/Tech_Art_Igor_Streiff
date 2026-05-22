@@ -1,0 +1,45 @@
+// TA_assetRenderSetup.mel — optional MEL entry point (v3)
+// Prefer: install/install.py (shelf) or scripts/open_ui.py (Python).
+
+global proc string TA_assetRenderGetScriptsPath()
+{
+    if (`optionVar -exists TA_assetRenderSetup_scriptsPath`)
+        return `optionVar -query TA_assetRenderSetup_scriptsPath`;
+
+    string $info = `whatIs "TA_assetRenderSetupUI"`;
+    string $lines[];
+    int $n = `tokenize $info "\n" $lines`;
+    int $i;
+    for ($i = 0; $i < $n; $i++)
+    {
+        if (`gmatch $lines[$i] "Located in: *"`)
+        {
+            string $melPath = `substitute "Located in: " $lines[$i] ""`;
+            string $dir = `dirname $melPath`;
+            return $dir;
+        }
+    }
+
+    warning "Asset Render Setup: run install/install.py (File > Open Script) once, or copy tool to maya/scripts/Maya_AssetRenderSetup/.";
+    return "";
+}
+
+global proc TA_assetRenderSetupUI()
+{
+    string $scripts = TA_assetRenderGetScriptsPath();
+    if ($scripts == "")
+        return;
+
+    string $p = $scripts;
+    string $pFixed = `substitute "\\\\" $p "/"`;
+    python("import sys");
+    python("p = r'" + $pFixed + "'");
+    python("sys.path.insert(0, p) if p not in sys.path else None");
+    python("import asset_render_setup");
+    python("asset_render_setup.show()");
+}
+
+global proc TA_assetRenderSetup()
+{
+    TA_assetRenderSetupUI();
+}

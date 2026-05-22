@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / local
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# Maya
+*.mb.autosave
+*.ma.autosave
