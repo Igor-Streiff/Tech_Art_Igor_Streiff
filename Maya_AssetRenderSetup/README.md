@@ -24,8 +24,8 @@ Python tool for Maya: **Arnold preview rig** (single or tri-cam, three-point lig
 ### Demo
 
 <p align="center">
-  <video controls width="720" src="assets/demo_AssetRenderSetup.mp4">
-    Demo video — <a href="assets/demo_AssetRenderSetup.mp4">open MP4</a>
+  <video controls width="720" src="https://raw.githubusercontent.com/Igor-Streiff/Tech_Art_Igor_Streiff/main/Maya_AssetRenderSetup/assets/demo_AssetRenderSetup.mp4">
+    Demo video — <a href="https://github.com/Igor-Streiff/Tech_Art_Igor_Streiff/blob/main/Maya_AssetRenderSetup/assets/demo_AssetRenderSetup.mp4">open MP4</a>
   </video>
 </p>
 
@@ -261,8 +261,8 @@ Herramienta Python para Maya: rig de preview **Arnold** (cámara simple o tri-ca
 ### Demostración
 
 <p align="center">
-  <video controls width="720" src="assets/demo_AssetRenderSetup.mp4">
-    Video demo — <a href="assets/demo_AssetRenderSetup.mp4">abrir MP4</a>
+  <video controls width="720" src="https://raw.githubusercontent.com/Igor-Streiff/Tech_Art_Igor_Streiff/main/Maya_AssetRenderSetup/assets/demo_AssetRenderSetup.mp4">
+    Video demo — <a href="https://github.com/Igor-Streiff/Tech_Art_Igor_Streiff/blob/main/Maya_AssetRenderSetup/assets/demo_AssetRenderSetup.mp4">abrir MP4</a>
   </video>
 </p>
 
