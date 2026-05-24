@@ -23,9 +23,11 @@ Python tool for Maya: **Arnold preview rig** (single or tri-cam, three-point lig
 
 ### Demo
 
-https://github.com/Igor-Streiff/Tech_Art_Igor_Streiff/raw/main/Maya_AssetRenderSetup/assets/demo_AssetRenderSetup.mp4
 
-[Download demo MP4](assets/demo_AssetRenderSetup.mp4)
+
+https://github.com/user-attachments/assets/231bd2fc-188d-4371-95d6-4ab9d031a56a
+
+
 
 The shelf installer uses `assets/shelf_icon.png` automatically (re-run `install/install.py` after updating assets or moving the repo).
 
@@ -258,9 +260,11 @@ Herramienta Python para Maya: rig de preview **Arnold** (cámara simple o tri-ca
 
 ### Demostración
 
-https://github.com/Igor-Streiff/Tech_Art_Igor_Streiff/raw/main/Maya_AssetRenderSetup/assets/demo_AssetRenderSetup.mp4
 
-[Descargar demo MP4](assets/demo_AssetRenderSetup.mp4)
+
+https://github.com/user-attachments/assets/8d5f756f-9c7f-49c4-83ba-7c0b4e9f4a4e
+
+
 
 El instalador del shelf usa `assets/shelf_icon.png` automáticamente (vuelve a ejecutar `install/install.py` si mueves el repo).
 
