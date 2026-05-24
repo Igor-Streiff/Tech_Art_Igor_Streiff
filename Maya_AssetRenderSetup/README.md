@@ -23,11 +23,9 @@ Python tool for Maya: **Arnold preview rig** (single or tri-cam, three-point lig
 
 ### Demo
 
-<p align="center">
-  <video controls width="720" src="https://raw.githubusercontent.com/Igor-Streiff/Tech_Art_Igor_Streiff/main/Maya_AssetRenderSetup/assets/demo_AssetRenderSetup.mp4">
-    Demo video — <a href="https://github.com/Igor-Streiff/Tech_Art_Igor_Streiff/blob/main/Maya_AssetRenderSetup/assets/demo_AssetRenderSetup.mp4">open MP4</a>
-  </video>
-</p>
+https://github.com/Igor-Streiff/Tech_Art_Igor_Streiff/raw/main/Maya_AssetRenderSetup/assets/demo_AssetRenderSetup.mp4
+
+[Download demo MP4](assets/demo_AssetRenderSetup.mp4)
 
 The shelf installer uses `assets/shelf_icon.png` automatically (re-run `install/install.py` after updating assets or moving the repo).
 
@@ -260,11 +258,9 @@ Herramienta Python para Maya: rig de preview **Arnold** (cámara simple o tri-ca
 
 ### Demostración
 
-<p align="center">
-  <video controls width="720" src="https://raw.githubusercontent.com/Igor-Streiff/Tech_Art_Igor_Streiff/main/Maya_AssetRenderSetup/assets/demo_AssetRenderSetup.mp4">
-    Video demo — <a href="https://github.com/Igor-Streiff/Tech_Art_Igor_Streiff/blob/main/Maya_AssetRenderSetup/assets/demo_AssetRenderSetup.mp4">abrir MP4</a>
-  </video>
-</p>
+https://github.com/Igor-Streiff/Tech_Art_Igor_Streiff/raw/main/Maya_AssetRenderSetup/assets/demo_AssetRenderSetup.mp4
+
+[Descargar demo MP4](assets/demo_AssetRenderSetup.mp4)
 
 El instalador del shelf usa `assets/shelf_icon.png` automáticamente (vuelve a ejecutar `install/install.py` si mueves el repo).
 
