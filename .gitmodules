@@ -1,0 +1,3 @@
+[submodule "VoxelParty"]
+	path = VoxelParty
+	url = https://github.com/Igor-Streiff/VoxelParty.git
