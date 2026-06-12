@@ -151,10 +151,6 @@ def _find_camera_by_name(target: str) -> str | None:
     return None
 
 
-def _find_render_camera() -> str | None:
-    return _find_camera_by_name(config.CAM_NAME)
-
-
 def _find_all_render_cameras() -> list[tuple[str, str]]:
     """Return all rig cameras present in the scene, in render order."""
     found: list[tuple[str, str]] = []
@@ -165,29 +161,13 @@ def _find_all_render_cameras() -> list[tuple[str, str]]:
     return found
 
 
-def _ensure_render_camera() -> str:
-    cam = _find_render_camera()
-    if not cam:
-        existing = cmds.ls(f"{config.RIG_PREFIX}*", type="transform") or []
-        hint = f" Found rig nodes: {existing}" if existing else " No rig nodes found."
-        raise RuntimeError(
-            f"Camera '{config.CAM_NAME}' not found.{hint} "
-            "Re-run Create Setup with the Camera checkbox enabled."
-        )
-    cmds.setAttr(f"{cam}.renderable", 1)
-    if cmds.objExists("persp.renderable"):
-        cmds.setAttr("persp.renderable", 0)
-    return cam
-
-
 def _notify_missing_setup() -> None:
     cmds.confirmDialog(
         title="Asset Render Setup — Fast Render",
         message=(
-            f"Fast Render needs an existing setup with camera:\n"
-            f"  {config.CAM_NAME}\n\n"
-            "Run Create Setup first (Camera checkbox enabled),\n"
-            "then try Fast Render again."
+            "Fast Render needs at least one Asset Render camera.\n\n"
+            "Run Create Setup first with any camera enabled\n"
+            "(Principal, Lateral, Cenital or Iso), then try again."
         ),
         button=["OK"],
         defaultButton="OK",
@@ -567,24 +547,30 @@ def fast_render(
     if not arnold_settings.ensure_mtoa_loaded():
         raise RuntimeError("Arnold (mtoa) is not available.")
 
-    cam = _find_render_camera()
-    if not cam:
+    cameras = _find_all_render_cameras()
+    if not cameras:
         if auto_setup_if_missing:
             setup_opts = replace(opts, camera=True)
             if cmds.objExists(config.RIG_GRP):
-                log.append(
-                    f"Camera '{config.CAM_NAME}' missing — re-running Create Setup (Camera ON)..."
-                )
+                log.append("No rig cameras found — re-running Create Setup (Camera ON)...")
             else:
                 log.append("No rig found — running Create Setup (Camera ON)...")
             log.extend(core.create_setup(setup_opts))
-        else:
+            cameras = _find_all_render_cameras()
+        if not cameras:
             _notify_missing_setup()
             raise RuntimeError(
-                f"Camera '{config.CAM_NAME}' not found. Run Create Setup first."
+                "No Asset Render cameras found. Run Create Setup with at "
+                "least one camera enabled."
             )
 
-    cam = _ensure_render_camera()
+    # Make every rig camera renderable; disable the default persp camera.
+    for cam_node, _suffix in cameras:
+        if cmds.objExists(f"{cam_node}.renderable"):
+            cmds.setAttr(f"{cam_node}.renderable", 1)
+    if cmds.objExists("persp.renderable"):
+        cmds.setAttr("persp.renderable", 0)
+
     arnold_settings.apply_arnold_settings()
 
     active_aovs = _active_aov_labels()
@@ -608,7 +594,6 @@ def fast_render(
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S") if config.RENDER_USE_TIMESTAMP else ""
     base = _scene_base_name()
-    cameras = _find_all_render_cameras()
 
     if not config.RENDER_USE_TIMESTAMP:
         log.append(
