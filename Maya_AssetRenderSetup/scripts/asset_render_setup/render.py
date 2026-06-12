@@ -6,13 +6,112 @@ import glob
 import os
 import re
 import time
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime
+from typing import Generator
 
 import maya.cmds as cmds
 
 from . import arnold_settings, bbox, config, core
 from .config import RigOptions
+
+
+def _get_asset_mesh_shapes() -> list[str]:
+    """All visible, non-intermediate mesh shapes that are NOT part of the rig."""
+    result: list[str] = []
+    for shape in cmds.ls(type="mesh", long=True) or []:
+        try:
+            if cmds.getAttr(f"{shape}.intermediateObject"):
+                continue
+        except RuntimeError:
+            continue
+        parents = cmds.listRelatives(shape, parent=True, fullPath=True) or []
+        if not parents:
+            continue
+        parent_short = bbox.short_name(parents[0])
+        if parent_short == config.RIG_GRP or parent_short.startswith(config.RIG_PREFIX):
+            continue
+        # Skip shapes inside the rig group hierarchy
+        full_path = parents[0]
+        if f"|{config.RIG_GRP}|" in full_path or full_path.startswith(f"{config.RIG_GRP}|"):
+            continue
+        result.append(shape)
+    return result
+
+
+def _save_shading_assignments(shapes: list[str]) -> dict[str, str]:
+    """Return {shape_long_path: shading_engine_name} for each shape."""
+    saved: dict[str, str] = {}
+    for shape in shapes:
+        sgs = (
+            cmds.listConnections(f"{shape}.instObjGroups", type="shadingEngine")
+            or cmds.listConnections(shape, type="shadingEngine")
+            or []
+        )
+        saved[shape] = sgs[0] if sgs else "initialShadingGroup"
+    return saved
+
+
+@contextmanager
+def _clay_override() -> Generator[str, None, None]:
+    """
+    Context manager: temporarily assign a matte clay shader to all asset meshes.
+    Restores original shading on exit (even if the render raises).
+    Yields the clay material name for logging.
+    """
+    shapes = _get_asset_mesh_shapes()
+    if not shapes:
+        yield "no meshes"
+        return
+
+    saved = _save_shading_assignments(shapes)
+
+    # Build clay shader (aiStandardSurface if Arnold is loaded, else Lambert)
+    use_ai = bool(cmds.pluginInfo("mtoa", query=True, loaded=True) if cmds.pluginInfo("mtoa", query=True, registered=True) else False)
+    clay_mtl_name = "TA_tmp_clayMtl"
+    clay_sg_name = "TA_tmp_claySG"
+
+    cr, cg, cb = config.CLAY_COLOR
+    if use_ai:
+        clay_mtl = cmds.shadingNode("aiStandardSurface", asShader=True, name=clay_mtl_name)
+        cmds.setAttr(f"{clay_mtl}.baseColor", cr, cg, cb, type="double3")
+        cmds.setAttr(f"{clay_mtl}.base", 1.0)
+        cmds.setAttr(f"{clay_mtl}.metalness", 0.0)
+        cmds.setAttr(f"{clay_mtl}.specular", config.CLAY_SPECULAR)
+        cmds.setAttr(f"{clay_mtl}.specularRoughness", config.CLAY_ROUGHNESS)
+        cmds.setAttr(f"{clay_mtl}.transmission", 0.0)
+    else:
+        clay_mtl = cmds.shadingNode("lambert", asShader=True, name=clay_mtl_name)
+        cmds.setAttr(f"{clay_mtl}.color", cr, cg, cb, type="double3")
+
+    clay_sg = cmds.sets(
+        renderable=True, noSurfaceShader=True, empty=True, name=clay_sg_name,
+    )
+    cmds.connectAttr(f"{clay_mtl}.outColor", f"{clay_sg}.surfaceShader", force=True)
+
+    try:
+        for shape in shapes:
+            try:
+                cmds.sets(shape, forceElement=clay_sg)
+            except RuntimeError:
+                pass
+        yield clay_mtl
+    finally:
+        # Restore original shading assignments
+        for shape, orig_sg in saved.items():
+            if cmds.objExists(shape) and cmds.objExists(orig_sg):
+                try:
+                    cmds.sets(shape, forceElement=orig_sg)
+                except RuntimeError:
+                    pass
+        # Delete temporary clay nodes
+        for node in (clay_sg, clay_mtl):
+            if cmds.objExists(node):
+                try:
+                    cmds.delete(node)
+                except RuntimeError:
+                    pass
 
 
 def _scene_base_name() -> str:
@@ -57,13 +156,9 @@ def _find_render_camera() -> str | None:
 
 
 def _find_all_render_cameras() -> list[tuple[str, str]]:
-    cam_specs = [
-        (config.CAM_NAME, "main"),
-        (config.CAM_SIDE_NAME, "side"),
-        (config.CAM_HIGH_NAME, "high"),
-    ]
+    """Return all rig cameras present in the scene, in render order."""
     found: list[tuple[str, str]] = []
-    for cam_name, suffix in cam_specs:
+    for cam_name, suffix in config.ALL_CAM_SPECS:
         node = _find_camera_by_name(cam_name)
         if node:
             found.append((node, suffix))
@@ -513,18 +608,25 @@ def fast_render(
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S") if config.RENDER_USE_TIMESTAMP else ""
     base = _scene_base_name()
-    use_tri = opts.tri_cam
-    cameras = _find_all_render_cameras() if use_tri else []
+    cameras = _find_all_render_cameras()
 
     if not config.RENDER_USE_TIMESTAMP:
         log.append(
             f"Output naming: {base}_beauty.png (+ {{aov}}.png when AOVs are on; see config.py for timestamp)"
         )
 
-    beauty_count = 0
     if len(cameras) > 1:
+        log.append(f"Renderizando {len(cameras)} cámara(s): {', '.join(s for _, s in cameras)}")
+
+    clay_render = getattr(opts, "clay_render", False)
+    if clay_render:
+        log.append("Clay render ON — override temporal de materiales activo.")
+
+    def _do_renders() -> int:
+        count = 0
         for cam_node, suffix in cameras:
-            stem = _render_stem(base, stamp, view=suffix)
+            view_label = suffix if len(cameras) > 1 else None
+            stem = _render_stem(base, stamp, view=view_label)
             prefix = os.path.join(output_dir, stem)
             beauty_path, all_paths = _render_one_camera(
                 cam_node, prefix, beauty_only=beauty_only,
@@ -533,18 +635,15 @@ def fast_render(
             extras = [p for p in all_paths if os.path.normpath(p) != os.path.normpath(beauty_path)]
             for extra in extras:
                 log.append(f"  + AOV: {os.path.basename(extra)}")
-            beauty_count += 1
+            count += 1
+        return count
+
+    if clay_render:
+        with _clay_override() as clay_info:
+            log.append(f"  Clay shader: {clay_info}")
+            beauty_count = _do_renders()
     else:
-        stem = _render_stem(base, stamp)
-        prefix = os.path.join(output_dir, stem)
-        beauty_path, all_paths = _render_one_camera(
-            cam, prefix, beauty_only=beauty_only,
-        )
-        log.append(f"Saved beauty: {beauty_path}")
-        extras = [p for p in all_paths if os.path.normpath(p) != os.path.normpath(beauty_path)]
-        for extra in extras:
-            log.append(f"  + AOV: {os.path.basename(extra)}")
-        beauty_count = 1
+        beauty_count = _do_renders()
 
     elapsed = time.time() - t0
     log.append(f"{beauty_count} beauty PNG(s) | {config.RES_WIDTH}x{config.RES_HEIGHT} | {elapsed:.1f}s")

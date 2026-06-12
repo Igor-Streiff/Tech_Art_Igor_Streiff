@@ -11,7 +11,7 @@
 ![Arnold](https://img.shields.io/badge/Arnold-MtoA-46b2e0)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-Python tool for Maya: **Arnold preview rig** (single or tri-cam, three-point lighting with presets, skydome, infinity cyclorama, optional reference kit) with a **toggle UI** and **Fast Render** (beauty PNG or 3-view contact sheet). Scales to your asset bounding box without moving geometry.
+Python tool for Maya: **Arnold preview rig** — selectable cameras (hero, side, high, plus orthographic isometric left/right), three-point lighting with presets, skydome, infinity cyclorama, optional reference kit — driven by a **toggle UI** with **Fast Render** (beauty PNG per camera) and an optional **clay render** override. Everything scales to your asset bounding box without moving geometry.
 
 ---
 
@@ -37,13 +37,15 @@ The shelf installer uses `assets/shelf_icon.png` automatically (re-run `install/
 
 ## Features
 
-- **UI with toggles** — Include or skip camera, cyclorama, key/fill/rim, optional uplight, skydome, Arnold render settings.
-- **Tri-Cam mode** — Optional three cameras (main 3/4, side, high) with automatic `viewFit` framing, ready for contact sheets.
+- **UI with toggles** — Pick exactly which rig elements to build, grouped into **Rig**, **Lights**, and **Fast Render** sections.
+- **Selectable cameras** — Enable any combination of hero (3/4), side, high, and **orthographic isometric** left/right (game-style iso). Each frames the asset automatically.
+- **Three-point lighting** — Key / fill / rim area lights plus optional uplight and an ambient skydome, all aimed at the asset.
+- **Scale-invariant brightness** — Lights use `normalize=OFF`, so the asset receives the same exposure whether it is a few units or hundreds across.
+- **Lighting styles** — Switch between *Default*, *Product*, *Hero*, *Soft Fill*, and *Blockout* exposure profiles from the UI.
+- **Clay render** — One-click matte clay material override (Fast Render flag, plus Apply/Restore buttons for interactive RenderView preview).
 - **Reference kit** — Optional chrome mirror sphere + 18% gray sphere for lighting and color validation.
-- **Lighting presets** — Switch between *Default*, *Product*, *Hero*, and *Soft Fill* exposure profiles from the UI.
-- **Create Setup** — Builds `TA_AssetRender_RIG` from selection or all visible meshes.
-- **Fast Render** — `{scene}_beauty.png` per camera; optional tri-cam contact sheet (`*_main_beauty`, `*_side_beauty`, `*_high_beauty`). Respects scene AOVs or **Beauty only** mode.
-- **Non-destructive** — Frames the asset; does not translate your geometry.
+- **Fast Render** — `{scene}_beauty.png` per active camera (multi-view suffixes when more than one is enabled). Respects scene AOVs or **Beauty only** mode.
+- **Non-destructive** — Frames the asset; does not translate your geometry. Clay override restores original materials automatically.
 - **Idempotent** — Re-run replaces the rig (no duplicates).
 - **MtoA tolerant** — Tries alternate Arnold attribute names across MtoA versions.
 - **Portable install** — No hardcoded paths; clone anywhere and run the installer from Maya.
@@ -99,41 +101,65 @@ If you previously copied the tool to `Documents/maya/<version>/scripts/Maya_Asse
 
 If you see two files per camera (e.g. `*_main.png` and `*_main_albedo.png`), that usually comes from **Render Settings → AOVs** and/or **Common → Alpha channel (Mask)** — not from the tool rendering twice. Numbered sidecars (`_1`, `_2`) are renamed to readable suffixes when possible (`_albedo`, `_mask`, etc.).
 
-**Default file names:** `{scene}_beauty.png` (always explicit). With AOVs: `{scene}_albedo.png`, `{scene}_diffuse_direct.png`, etc. Tri-cam: `{scene}_main_beauty.png`, `{scene}_main_albedo.png`, …
+**Default file names:** with a single camera, `{scene}_beauty.png` (always explicit). With AOVs: `{scene}_albedo.png`, `{scene}_diffuse_direct.png`, etc. With multiple cameras enabled, each view gets a suffix: `{scene}_main_beauty.png`, `{scene}_side_beauty.png`, `{scene}_high_beauty.png`, `{scene}_isoLeft_beauty.png`, `{scene}_isoRight_beauty.png`.
 
 Arnold may write the first AOV to the bare prefix (`{scene}.png`) during render; the tool renames outputs after render so the **lit beauty** becomes `_beauty` and flat passes get their AOV name.
 
 ### UI toggles
 
+**Rig**
+
 | Toggle | Creates |
 |--------|---------|
-| Camera | `TA_assetRender_cam` |
 | Cyclorama | Infinity cove (loft floor + curved backdrop mesh) |
+| Reference kit | Chrome mirror sphere + 18% gray sphere (default OFF) |
+| Apply Arnold settings | Renderer Arnold, 1920×1080, default sample preset |
+| Camera — Principal | `TA_assetRender_cam` — hero 3/4 perspective |
+| Camera — Lateral | `TA_assetRender_cam_side` — side perspective (default OFF) |
+| Camera — Cenital | `TA_assetRender_cam_high` — high perspective (default OFF) |
+| Camera — Iso izquierda | `TA_assetRender_cam_isoLeft` — orthographic iso (default OFF) |
+| Camera — Iso derecha | `TA_assetRender_cam_isoRight` — orthographic iso (default OFF) |
+
+**Lights**
+
+| Toggle | Creates |
+|--------|---------|
+| Style | Lighting profile (Default / Product / Hero / Soft Fill / Blockout) |
 | Key / Fill / Rim | `aiAreaLight` trio, aimed at bbox center |
 | Uplight | Optional low frontal fill (`TA_assetRender_uplight`, default OFF) |
 | Skydome | `aiSkyDomeLight` ambient fill |
-| Arnold settings | Renderer Arnold, 1920×1080, default sample preset |
-| Tri-Cam | 3 cameras: main (3/4), side, high — with `viewFit` (default OFF) |
-| Reference kit | Chrome mirror sphere + 18% gray sphere (default OFF) |
-| Beauty only | Skip scene AOVs for Fast Render; output beauty PNG only (default OFF) |
 
-### Lighting presets
+**Fast Render**
 
-| Preset | Key | Fill | Rim | Sky | Best for |
-|--------|-----|------|-----|-----|----------|
-| Default | 4.0 | 4.0 | 9.0 | 0.5 | General purpose |
-| Product | 5.0 | 5.5 | 6.0 | 1.0 | Hard-surface / props (even, bright) |
-| Hero | 5.5 | 2.5 | 10.0 | 0.3 | Characters (dramatic, strong rim) |
-| Soft Fill | 4.5 | 5.0 | 5.0 | 1.2 | Portfolio / beauty (warm, gentle) |
+| Toggle | Behavior |
+|--------|----------|
+| Clay render | Temporarily override all asset materials with matte clay during render (default OFF) |
+| Beauty only | Skip scene AOVs; output beauty PNG only (default OFF) |
+
+Two buttons — **Aplicar Clay** / **Restaurar materiales** — apply the same clay override interactively so you can preview it in Arnold RenderView, then restore the original shaders.
+
+### Lighting styles
+
+Exposures are Arnold EV stops; the key-to-fill ratio (not absolute values) defines the look. All styles are scale-invariant.
+
+| Style | Key | Fill | Rim | Sky | Best for |
+|-------|-----|------|-----|-----|----------|
+| Default | 3.5 | 1.5 | 4.5 | 0.2 | General purpose, balanced 4:1 key/fill |
+| Product | 4.0 | 2.0 | 4.5 | 0.5 | Hard-surface / props, clean white sky |
+| Hero | 4.5 | 1.0 | 6.5 | -0.5 | Characters, dramatic deep shadows |
+| Soft Fill | 3.0 | 2.0 | 3.5 | 0.8 | Portfolio / beauty, soft diffuse |
+| Blockout | 3.5 | 0.5 | 5.0 | -1.0 | Untextured models, maximum form contrast |
 
 ### Scene nodes
 
 | Node | Type |
 |------|------|
 | `TA_AssetRender_RIG` | Group |
-| `TA_assetRender_cam` | Camera (main / hero) |
-| `TA_assetRender_cam_side` | Camera — side view (tri-cam only) |
-| `TA_assetRender_cam_high` | Camera — high view (tri-cam only) |
+| `TA_assetRender_cam` | Camera — hero 3/4 (perspective) |
+| `TA_assetRender_cam_side` | Camera — side (perspective, optional) |
+| `TA_assetRender_cam_high` | Camera — high (perspective, optional) |
+| `TA_assetRender_cam_isoLeft` | Camera — isometric left (orthographic, optional) |
+| `TA_assetRender_cam_isoRight` | Camera — isometric right (orthographic, optional) |
 | `TA_assetRender_key` / `fill` / `rim` | Area lights |
 | `TA_assetRender_uplight` | Area light (optional) |
 | `TA_assetRender_skydome` | Skydome |
@@ -185,15 +211,20 @@ from asset_render_setup import RigOptions, create_setup, fast_render, show
 show()
 
 opts = RigOptions(
-    tri_cam=True,
+    camera=True,            # hero 3/4
+    cam_iso_left=True,      # orthographic iso views
+    cam_iso_right=True,
     reference_kit=True,
     lighting_preset="hero",
-    beauty_only=True,   # beauty PNG only; ignore scene AOVs
+    clay_render=True,       # matte clay material override
+    beauty_only=True,       # beauty PNG only; ignore scene AOVs
 )
 create_setup(opts)
 fast_render("C:/renders/output", options=opts)
-# → AssetName_main_beauty.png, AssetName_side_beauty.png, AssetName_high_beauty.png
+# → AssetName_main_beauty.png, AssetName_isoLeft_beauty.png, AssetName_isoRight_beauty.png
 ```
+
+Camera flags: `camera` (hero), `cam_side`, `cam_high`, `cam_iso_left`, `cam_iso_right`. Fast Render renders every rig camera present in the scene.
 
 ## Troubleshooting
 
@@ -210,8 +241,10 @@ fast_render("C:/renders/output", options=opts)
 ## Customization
 
 - **Lighting / cyclorama scale:** `scripts/asset_render_setup/config.py`
-- **Lighting presets:** add entries to `LIGHTING_PRESETS` in `config.py`
-- **Shelf icon:** add `assets/shelf_icon.png` and point `install/install.py` `image=` to your file
+- **Lighting styles:** add entries to `LIGHTING_PRESETS` in `config.py`
+- **Clay material:** `CLAY_COLOR`, `CLAY_SPECULAR`, `CLAY_ROUGHNESS` in `config.py`
+- **Iso framing margin:** `ISO_ORTHO_WIDTH_MULT` in `config.py` (or the `fill_factor` in `_frame_orthographic`)
+- **Shelf icon:** the installer uses `assets/shelf_icon.png` automatically
 - **Version string:** `scripts/asset_render_setup/config.py` (`__version__`)
 
 ## Alternatives & landscape
@@ -230,7 +263,7 @@ fast_render("C:/renders/output", options=opts)
 |---------|-------|--------|
 | **v2.0** | Single cam, 3-point + cove + skydome, Fast Render, toggle UI | Released |
 | **v3.0** | Tri-cam, reference kit, lighting presets, contact sheet | Released |
-| **v3.0.1** | Fast Render polish, naming, install fixes, Beauty only toggle | Current |
+| **v3.0.2** | Scale-invariant lights, selectable + orthographic iso cameras, clay render, recalibrated styles, reorganized UI | Current |
 | v3.1 | Simple turntable (rotate asset or camera, playblast / render sequence) | Planned |
 | v4+ | Multi-DCC (Blender), HDR batch, Nuke AOV export | Out of scope (see alternatives above) |
 
@@ -248,7 +281,7 @@ fast_render("C:/renders/output", options=opts)
 ![Arnold](https://img.shields.io/badge/Arnold-MtoA-46b2e0)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-Herramienta Python para Maya: rig de preview **Arnold** (cámara simple o tri-cam, iluminación three-point con presets, skydome, ciclorama infinity cove, kit de referencia opcional), **UI con toggles** y **Fast Render** (PNG beauty o contact sheet de 3 vistas). Escala al bounding box del asset sin mover la geometría.
+Herramienta Python para Maya: rig de preview **Arnold** — cámaras seleccionables (hero, lateral, cenital, e isométricas ortográficas izquierda/derecha), iluminación three-point con estilos, skydome, ciclorama infinity cove, kit de referencia opcional — con **UI de toggles**, **Fast Render** (PNG beauty por cámara) y un **clay render** opcional. Todo escala al bounding box del asset sin mover la geometría.
 
 ---
 
@@ -274,13 +307,15 @@ El instalador del shelf usa `assets/shelf_icon.png` automáticamente (vuelve a e
 
 ## Características
 
-- **UI con toggles** — Cámara, ciclorama, key/fill/rim, uplight opcional, skydome, ajustes Arnold.
-- **Tri-Cam** — Opcional: tres cámaras (main 3/4, side, high) con `viewFit` automático, listas para contact sheet.
+- **UI con toggles** — Elegí qué construir, agrupado en secciones **Rig**, **Lights** y **Fast Render**.
+- **Cámaras seleccionables** — Cualquier combinación de hero (3/4), lateral, cenital e **isométricas ortográficas** izquierda/derecha (look iso de videojuego). Cada una encuadra el asset automáticamente.
+- **Iluminación three-point** — Área key / fill / rim, uplight opcional y skydome ambiente, todas apuntando al asset.
+- **Brillo invariante a la escala** — Las luces usan `normalize=OFF`: el asset recibe la misma exposición sea chico o enorme.
+- **Estilos de iluminación** — *Default*, *Product*, *Hero*, *Soft Fill* y *Blockout* desde la UI.
+- **Clay render** — Override de material clay matte con un clic (flag de Fast Render + botones Aplicar/Restaurar para preview en RenderView).
 - **Kit de referencia** — Opcional: esfera cromo espejo + esfera gris 18% para validar iluminación y color.
-- **Presets de iluminación** — *Default*, *Product*, *Hero*, *Soft Fill* desde la UI.
-- **Create Setup** — Crea `TA_AssetRender_RIG` desde la selección o todos los meshes visibles.
-- **Fast Render** — `{scene}_beauty.png` por cámara; contact sheet tri-cam opcional. Modo **Beauty only** o respeta AOVs de la escena.
-- **No destructivo** — Encuadra el asset; no traslada tu geometría.
+- **Fast Render** — `{scene}_beauty.png` por cámara activa (sufijos por vista cuando hay más de una). Modo **Beauty only** o respeta AOVs de la escena.
+- **No destructivo** — Encuadra el asset; no traslada tu geometría. El clay restaura los materiales originales solo.
 - **Idempotente** — Volver a ejecutar reemplaza el rig (sin duplicados).
 - **Instalación portable** — Sin rutas fijas.
 
@@ -323,7 +358,9 @@ Quita el botón del shelf, guarda los shelves en disco y borra las `optionVar` d
 ## Personalización
 
 - Valores de luces, ciclorama y samples: `scripts/asset_render_setup/config.py`
-- Presets de iluminación: añade entradas a `LIGHTING_PRESETS` en `config.py`
+- Estilos de iluminación: añade entradas a `LIGHTING_PRESETS` en `config.py`
+- Material clay: `CLAY_COLOR`, `CLAY_SPECULAR`, `CLAY_ROUGHNESS` en `config.py`
+- Margen del encuadre iso: `ISO_ORTHO_WIDTH_MULT` en `config.py`
 
 ## Alternativas y contexto
 
@@ -341,7 +378,7 @@ Quita el botón del shelf, guarda los shelves en disco y borra las `optionVar` d
 |---------|---------|--------|
 | **v2.0** | Cámara única, 3-point + cove + skydome, Fast Render, UI con toggles | Publicada |
 | **v3.0** | Tri-cam, kit de referencia, presets, contact sheet | Publicada |
-| **v3.0.1** | Pulido Fast Render, nombres, install, toggle Beauty only | Actual |
+| **v3.0.2** | Luces invariantes a escala, cámaras seleccionables + iso ortográfica, clay render, estilos recalibrados, UI reorganizada | Actual |
 | v3.1 | Turntable simple (rotación de asset o cámara, playblast / render sequence) | Planificado |
 | v4+ | Multi-DCC (Blender), batch HDR, export AOV Nuke | Fuera de scope (ver alternativas) |
 

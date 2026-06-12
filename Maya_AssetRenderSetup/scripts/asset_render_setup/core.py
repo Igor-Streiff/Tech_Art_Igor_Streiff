@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import maya.cmds as cmds
+
 from . import arnold_settings, bbox, cleanup, config, rig
 from .config import BBox, RigOptions
 
@@ -38,9 +40,15 @@ def create_setup(options: RigOptions | None = None) -> list[str]:
         log.extend(arnold_settings.apply_arnold_settings())
 
     log.append("=== Setup complete ===")
-    if options.tri_cam and options.camera:
-        log.append(f"View through any of: {', '.join(config.TRI_CAM_NAMES)}")
-    else:
-        log.append(f"View through {config.CAM_NAME} and run Arnold IPR.")
+    active_cams = [
+        name for name in (
+            config.CAM_NAME, config.CAM_SIDE_NAME, config.CAM_HIGH_NAME,
+            config.CAM_ISO_LEFT_NAME, config.CAM_ISO_RIGHT_NAME,
+        ) if cmds.objExists(name)
+    ]
+    if len(active_cams) > 1:
+        log.append(f"Cámaras: {', '.join(active_cams)}")
+    elif active_cams:
+        log.append(f"Vista activa: {active_cams[0]}")
 
     return log

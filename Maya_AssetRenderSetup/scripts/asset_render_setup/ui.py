@@ -14,6 +14,9 @@ LOG_FIELD = "TA_AssetRenderSetup_log"
 
 _CHECKBOXES: dict[str, str] = {}
 _PRESET_MENU: str = ""
+# Clay state persisted between Apply / Restore clicks
+_clay_saved_assignments: dict[str, str] = {}
+_clay_nodes: list[str] = []   # [sg, mtl]
 
 
 def _reload_modules() -> None:
@@ -72,23 +75,103 @@ def _read_options() -> config.RigOptions:
     preset_key = "default"
     if _PRESET_MENU:
         try:
-            preset_key = cmds.optionMenu(_PRESET_MENU, query=True, value=True)
+            selected_label = cmds.optionMenu(_PRESET_MENU, query=True, value=True)
+            for k, p in config.LIGHTING_PRESETS.items():
+                if p.label == selected_label:
+                    preset_key = k
+                    break
         except Exception:
             pass
+
+    def _val(key: str) -> bool:
+        return cmds.checkBox(_CHECKBOXES[key], query=True, value=True)
+
     return config.RigOptions(
-        camera=cmds.checkBox(_CHECKBOXES["camera"], query=True, value=True),
-        cyclorama=cmds.checkBox(_CHECKBOXES["cyclorama"], query=True, value=True),
-        key_light=cmds.checkBox(_CHECKBOXES["key_light"], query=True, value=True),
-        fill_light=cmds.checkBox(_CHECKBOXES["fill_light"], query=True, value=True),
-        rim_light=cmds.checkBox(_CHECKBOXES["rim_light"], query=True, value=True),
-        uplight=cmds.checkBox(_CHECKBOXES["uplight"], query=True, value=True),
-        skydome=cmds.checkBox(_CHECKBOXES["skydome"], query=True, value=True),
-        arnold_settings=cmds.checkBox(_CHECKBOXES["arnold_settings"], query=True, value=True),
-        tri_cam=cmds.checkBox(_CHECKBOXES["tri_cam"], query=True, value=True),
-        reference_kit=cmds.checkBox(_CHECKBOXES["reference_kit"], query=True, value=True),
+        camera=_val("camera"),
+        cyclorama=_val("cyclorama"),
+        key_light=_val("key_light"),
+        fill_light=_val("fill_light"),
+        rim_light=_val("rim_light"),
+        uplight=_val("uplight"),
+        skydome=_val("skydome"),
+        arnold_settings=_val("arnold_settings"),
+        tri_cam=False,
+        cam_side=_val("cam_side"),
+        cam_high=_val("cam_high"),
+        cam_iso_left=_val("cam_iso_left"),
+        cam_iso_right=_val("cam_iso_right"),
+        reference_kit=_val("reference_kit"),
         lighting_preset=preset_key,
-        beauty_only=cmds.checkBox(_CHECKBOXES["beauty_only"], query=True, value=True),
+        beauty_only=_val("beauty_only"),
+        clay_render=_val("clay_render"),
     )
+
+
+def _on_apply_clay(*_args) -> None:
+    global _clay_saved_assignments, _clay_nodes
+    _clear_log()
+    try:
+        _reload_modules()
+        shapes = render._get_asset_mesh_shapes()
+        if not shapes:
+            _log("No se encontraron meshes del asset.")
+            return
+        _clay_saved_assignments = render._save_shading_assignments(shapes)
+
+        use_ai = bool(cmds.pluginInfo("mtoa", query=True, loaded=True)
+                      if cmds.pluginInfo("mtoa", query=True, registered=True) else False)
+        mtl_name, sg_name = "TA_tmp_clayMtl", "TA_tmp_claySG"
+        for n in (sg_name, mtl_name):
+            if cmds.objExists(n):
+                cmds.delete(n)
+
+        cr, cg, cb = config.CLAY_COLOR
+        if use_ai:
+            mtl = cmds.shadingNode("aiStandardSurface", asShader=True, name=mtl_name)
+            cmds.setAttr(f"{mtl}.baseColor", cr, cg, cb, type="double3")
+            cmds.setAttr(f"{mtl}.base", 1.0)
+            cmds.setAttr(f"{mtl}.metalness", 0.0)
+            cmds.setAttr(f"{mtl}.specular", config.CLAY_SPECULAR)
+            cmds.setAttr(f"{mtl}.specularRoughness", config.CLAY_ROUGHNESS)
+        else:
+            mtl = cmds.shadingNode("lambert", asShader=True, name=mtl_name)
+            cmds.setAttr(f"{mtl}.color", cr, cg, cb, type="double3")
+
+        sg = cmds.sets(renderable=True, noSurfaceShader=True, empty=True, name=sg_name)
+        cmds.connectAttr(f"{mtl}.outColor", f"{sg}.surfaceShader", force=True)
+        _clay_nodes[:] = [sg, mtl]
+
+        for shape in shapes:
+            try:
+                cmds.sets(shape, forceElement=sg)
+            except RuntimeError:
+                pass
+        _log(f"Clay aplicado a {len(shapes)} mesh(es). Usá 'Restaurar' para volver.")
+    except Exception as exc:
+        _log(f"ERROR: {exc}")
+        _log(traceback.format_exc())
+
+
+def _on_restore_clay(*_args) -> None:
+    global _clay_saved_assignments, _clay_nodes
+    _clear_log()
+    restored = 0
+    for shape, sg in _clay_saved_assignments.items():
+        if cmds.objExists(shape) and cmds.objExists(sg):
+            try:
+                cmds.sets(shape, forceElement=sg)
+                restored += 1
+            except RuntimeError:
+                pass
+    for node in _clay_nodes:
+        if cmds.objExists(node):
+            try:
+                cmds.delete(node)
+            except RuntimeError:
+                pass
+    _clay_saved_assignments.clear()
+    _clay_nodes.clear()
+    _log(f"Materiales restaurados ({restored} mesh(es)).")
 
 
 def _on_browse(*_args) -> None:
@@ -148,79 +231,140 @@ def show() -> None:
     if cmds.optionVar(exists=config.OPTIONVAR_OUTPUT_DIR):
         saved_out = cmds.optionVar(query=config.OPTIONVAR_OUTPUT_DIR) or ""
 
-    cmds.window(WINDOW_NAME, title="Asset Render Setup", widthHeight=(380, 720))
-    cmds.columnLayout(adjustableColumn=True, rowSpacing=8, columnOffset=("both", 12))
+    cmds.window(WINDOW_NAME, title="Asset Render Setup", widthHeight=(340, 660))
+    cmds.scrollLayout(horizontalScrollBarThickness=0)
+    cmds.columnLayout(adjustableColumn=True, rowSpacing=0, columnOffset=("both", 10))
 
-    cmds.separator(height=8, style="none")
+    # ── Header ──────────────────────────────────────────────────────────────
+    cmds.separator(height=10, style="none")
     cmds.text(label="Asset Render Setup", font="boldLabelFont", align="center")
     cmds.text(label=f"v{config.__version__}", align="center")
-    cmds.separator(height=8, style="in")
 
-    cmds.text(label="Include in setup:", align="left", font="smallBoldLabelFont")
+    def _section(title: str) -> None:
+        cmds.separator(height=10, style="in")
+        cmds.text(label=title, align="left", font="smallBoldLabelFont")
+        cmds.separator(height=4, style="none")
 
     def _cb(label: str, key: str, default: bool = True) -> None:
         _CHECKBOXES[key] = cmds.checkBox(label=label, value=default, align="left")
 
-    _cb("Camera", "camera")
-    _cb("Cyclorama (floor + curved backdrop)", "cyclorama")
+    # ── Rig ─────────────────────────────────────────────────────────────────
+    _section("Rig")
+    _cb("Cyclorama  (piso + fondo curvo)", "cyclorama")
+    _cb("Reference kit  (esferas chrome + gris 18%)", "reference_kit", default=False)
+    _cb("Apply Arnold settings  (1920×1080, AA 7)", "arnold_settings")
+
+    # Cámaras — sub-bloque indentado
+    cmds.separator(height=4, style="none")
+    cmds.text(label="  Cámaras:", align="left", font="smallBoldLabelFont")
+    cmds.separator(height=2, style="none")
+
+    cmds.rowLayout(numberOfColumns=1, adjustableColumn=1, columnOffset1=12)
+    cmds.columnLayout(adjustableColumn=True, rowSpacing=1)
+    _cb("Principal  (hero 3/4)", "camera")
+    _cb("Lateral  (side)", "cam_side", default=False)
+    _cb("Cenital  (high)", "cam_high", default=False)
+    _cb("Iso izquierda  (ortográfica ↗ izq.)", "cam_iso_left", default=False)
+    _cb("Iso derecha  (ortográfica ↗ der.)", "cam_iso_right", default=False)
+    cmds.setParent("..")
+    cmds.setParent("..")
+
+    # ── Lights ──────────────────────────────────────────────────────────────
+    _section("Lights")
+
+    cmds.rowLayout(
+        numberOfColumns=2,
+        adjustableColumn=2,
+        columnWidth2=(44, 200),
+        columnAlign2=("right", "left"),
+        columnAttach2=("right", "left"),
+    )
+    cmds.text(label="Style:", align="right")
+    global _PRESET_MENU
+    _PRESET_MENU = cmds.optionMenu()
+    for preset in config.LIGHTING_PRESETS.values():
+        cmds.menuItem(label=preset.label)
+    cmds.setParent("..")
+
+    cmds.separator(height=6, style="none")
     _cb("Key light", "key_light")
     _cb("Fill light", "fill_light")
     _cb("Rim light", "rim_light")
-    _cb("Uplight (contrapicado / hero light)", "uplight", default=False)
-    _cb("Skydome (ambient fill)", "skydome")
-    _cb("Arnold settings (1920x1080, samples)", "arnold_settings")
+    _cb("Uplight  (contrapicado)", "uplight", default=False)
+    _cb("Skydome  (relleno ambiente)", "skydome")
 
-    cmds.separator(height=4, style="none")
-    cmds.text(label="Extras:", align="left", font="smallBoldLabelFont")
-    _cb("Tri-Cam (main + side + high)", "tri_cam", default=False)
-    _cb("Reference kit (chrome + gray spheres)", "reference_kit", default=False)
-
-    cmds.separator(height=4, style="none")
-    cmds.text(label="Lighting preset:", align="left", font="smallBoldLabelFont")
-    global _PRESET_MENU
-    _PRESET_MENU = cmds.optionMenu()
-    for key in config.LIGHTING_PRESETS:
-        cmds.menuItem(label=key)
-
-    cmds.separator(height=8, style="in")
-    cmds.text(label="Fast Render:", align="left", font="smallBoldLabelFont")
-    _cb(
-        "Beauty only (ignore scene AOVs / extra passes)",
-        "beauty_only",
-        default=False,
-    )
+    # ── Fast Render ─────────────────────────────────────────────────────────
+    _section("Fast Render")
+    _cb("Clay render  (override en Fast Render)", "clay_render", default=False)
     cmds.text(
-        label="Off = respect Arnold Render Settings (AOVs, alpha mask, etc.)",
+        label="  Asigna matte clay en el render. Para preview en RenderView:",
+        align="left",
+        font="smallObliqueLabelFont",
+    )
+    cmds.separator(height=3, style="none")
+    cmds.rowLayout(
+        numberOfColumns=2,
+        columnWidth2=(152, 152),
+        columnAlign2=("center", "center"),
+        columnAttach2=("both", "both"),
+        columnOffset2=(2, 2),
+    )
+    cmds.button(
+        label="Aplicar Clay",
+        height=24,
+        backgroundColor=(0.38, 0.32, 0.28),
+        command=_on_apply_clay,
+    )
+    cmds.button(
+        label="Restaurar materiales",
+        height=24,
+        backgroundColor=(0.30, 0.30, 0.30),
+        command=_on_restore_clay,
+    )
+    cmds.setParent("..")
+    cmds.separator(height=6, style="none")
+    _cb("Beauty only  (ignorar AOVs / passes extra)", "beauty_only", default=False)
+    cmds.text(
+        label="Off = exportar AOVs según Arnold Render Settings",
         align="left",
         font="smallObliqueLabelFont",
     )
 
-    cmds.separator(height=4, style="none")
-    cmds.text(label="Output folder:", align="left", font="smallBoldLabelFont")
-
-    cmds.rowLayout(numberOfColumns=2, adjustableColumn=1, columnAlign=(1, "left"))
+    cmds.separator(height=6, style="none")
+    cmds.text(label="Carpeta de salida:", align="left", font="smallBoldLabelFont")
+    cmds.separator(height=2, style="none")
+    cmds.rowLayout(numberOfColumns=2, adjustableColumn=1)
     cmds.textField("TA_AssetRenderSetup_outputField", text=saved_out)
-    cmds.button(label="Browse", command=_on_browse, width=70)
+    cmds.button(label="Browse", command=_on_browse, width=64)
     cmds.setParent("..")
 
-    cmds.separator(height=8, style="none")
-    cmds.rowLayout(numberOfColumns=2, columnWidth2=(180, 180), columnAlign2=("center", "center"))
+    # ── Botones de acción ───────────────────────────────────────────────────
+    cmds.separator(height=10, style="none")
+    cmds.rowLayout(
+        numberOfColumns=2,
+        columnWidth2=(155, 155),
+        columnAlign2=("center", "center"),
+        columnAttach2=("both", "both"),
+        columnOffset2=(2, 2),
+    )
     cmds.button(
         label="Create Setup",
-        height=40,
+        height=36,
         backgroundColor=(0.25, 0.45, 0.65),
         command=_on_create_setup,
     )
     cmds.button(
         label="Fast Render",
-        height=40,
-        backgroundColor=(0.35, 0.55, 0.4),
+        height=36,
+        backgroundColor=(0.30, 0.52, 0.38),
         command=_on_fast_render,
     )
     cmds.setParent("..")
 
+    # ── Log ─────────────────────────────────────────────────────────────────
+    cmds.separator(height=10, style="in")
     cmds.text(label="Log:", align="left", font="smallBoldLabelFont")
-    cmds.scrollField(LOG_FIELD, height=160, editable=False, wordWrap=True, text="Ready.")
-
+    cmds.scrollField(LOG_FIELD, height=120, editable=False, wordWrap=True, text="Ready.")
     cmds.separator(height=8, style="none")
+
     cmds.showWindow(WINDOW_NAME)

@@ -4,17 +4,30 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-__version__ = "3.0.1"
+__version__ = "3.0.2"
 
 RIG_GRP = "TA_AssetRender_RIG"
 RIG_PREFIX = "TA_assetRender_"
 CAM_NAME = "TA_assetRender_cam"
 CYC_NAME = "TA_assetRender_cyc"
 
-# Tri-cam
+# Tri-cam (legacy bundle: main + side + high)
 CAM_SIDE_NAME = "TA_assetRender_cam_side"
 CAM_HIGH_NAME = "TA_assetRender_cam_high"
 TRI_CAM_NAMES = (CAM_NAME, CAM_SIDE_NAME, CAM_HIGH_NAME)
+
+# Isometric cameras (elevated diagonal, game-style 3/4)
+CAM_ISO_LEFT_NAME = "TA_assetRender_cam_isoLeft"
+CAM_ISO_RIGHT_NAME = "TA_assetRender_cam_isoRight"
+
+# All possible rig cameras in render order (name, output suffix)
+ALL_CAM_SPECS: tuple[tuple[str, str], ...] = (
+    (CAM_NAME,          "main"),
+    (CAM_SIDE_NAME,     "side"),
+    (CAM_HIGH_NAME,     "high"),
+    (CAM_ISO_LEFT_NAME, "isoLeft"),
+    (CAM_ISO_RIGHT_NAME,"isoRight"),
+)
 
 # Reference kit (chrome mirror ball + 18% gray ball)
 REF_CHROME_NAME = "TA_assetRender_refChrome"
@@ -43,17 +56,32 @@ TRANSMISSION_SAMPLES = 6
 SSS_SAMPLES = 4
 LIGHT_SAMPLES = 3
 
-# 3-point lighting defaults (also the "default" preset values)
-KEY_EXPOSURE = 4.0
-FILL_EXPOSURE = 4.0
-RIM_EXPOSURE = 9.0
-UPLIGHT_EXPOSURE = 4.0
-SKY_EXPOSURE = 0.5
+# 3-point lighting defaults — calibrated for aiAreaLight normalize=OFF.
+# Key:Fill ratio ~4:1 (2 EV stops) so they don't overexpose when combined.
+# Fill is a shadow-opener, not a co-illuminator.
+KEY_EXPOSURE = 3.5     # dominant light — correct alone, anchor of the setup
+FILL_EXPOSURE = 1.5    # 2 EV below key → 4:1 ratio, proper shadow fill
+RIM_EXPOSURE = 4.5     # edge accent — focused on back silhouette
+UPLIGHT_EXPOSURE = 2.0
+SKY_EXPOSURE = 0.2     # stable ambient base
 SKY_COLOR = (0.9, 0.92, 0.95)
 
 CAM_FOCAL_LENGTH = 50.0
 DIST_MULT = 2.8
 AREA_SCALE_MULT = 1.2
+
+# Iso cameras: orthographic width as a fraction of bbox.size. The iso 45°/30°
+# projection of a cube spans ~1.4× its max axis; 1.8 leaves margin before
+# viewFit refines the framing to the actual geometry.
+ISO_ORTHO_WIDTH_MULT = 1.8
+
+# Clay override material (Fast Render clay / RenderView preview).
+# Dark warm gray (~0.22): with all lights combined a 0.45 albedo still washed
+# to near-white because the contributions accumulate. A darker base keeps tonal
+# range available so the key→fill→shadow gradient stays visible when fully lit.
+CLAY_COLOR = (0.22, 0.21, 0.19)
+CLAY_SPECULAR = 0.05
+CLAY_ROUGHNESS = 0.95
 
 # Infinity cove multipliers (fraction of bbox size)
 CYC_WIDTH_MULT = 20.0
@@ -87,18 +115,26 @@ class LightingPreset:
 
 
 LIGHTING_PRESETS: dict[str, LightingPreset] = {
+    # Balanced studio — key correct alone, fill opens shadows, rim as accent.
     "default": LightingPreset(
         "Default", KEY_EXPOSURE, FILL_EXPOSURE, RIM_EXPOSURE,
         UPLIGHT_EXPOSURE, SKY_EXPOSURE, SKY_COLOR,
     ),
+    # Clean product — bright key, minimal fill (4:1 ratio), subtle rim, white sky.
     "product": LightingPreset(
-        "Product", 5.0, 5.5, 6.0, 3.0, 1.0, (1.0, 1.0, 1.0),
+        "Product", 4.0, 2.0, 4.5, 1.5, 0.5, (1.0, 1.0, 1.0),
     ),
+    # Dramatic — strong key, deep fill (8:1 ratio), punchy rim, near-zero sky.
     "hero": LightingPreset(
-        "Hero", 5.5, 2.5, 10.0, 5.0, 0.3, (0.85, 0.88, 0.95),
+        "Hero", 4.5, 1.0, 6.5, 2.0, -0.5, (0.85, 0.88, 0.95),
     ),
+    # Soft — balanced key/fill (2:1 ratio), soft rim, higher sky for diffuse look.
     "soft_fill": LightingPreset(
-        "Soft Fill", 4.5, 5.0, 5.0, 3.0, 1.2, (0.95, 0.93, 0.9),
+        "Soft Fill", 3.0, 2.0, 3.5, 1.5, 0.8, (0.95, 0.93, 0.9),
+    ),
+    # Blockout — strong directional key, minimal fill, skydome off. Reads form.
+    "clay": LightingPreset(
+        "Blockout", 3.5, 0.5, 5.0, 1.0, -1.0, (0.88, 0.90, 0.95),
     ),
 }
 
@@ -117,11 +153,18 @@ class RigOptions:
     uplight: bool = False
     skydome: bool = True
     arnold_settings: bool = True
+    # Individual camera flags (tri_cam kept for backward compat: sets side+high)
     tri_cam: bool = False
+    cam_side: bool = False
+    cam_high: bool = False
+    cam_iso_left: bool = False
+    cam_iso_right: bool = False
     reference_kit: bool = False
     lighting_preset: str = "default"
     # Fast Render: when True, temporarily disable scene AOVs and keep only beauty PNGs.
     beauty_only: bool = False
+    # Fast Render: when True, temporarily override all asset materials with a clay shader.
+    clay_render: bool = False
 
     @classmethod
     def all_enabled(cls) -> RigOptions:
@@ -129,6 +172,12 @@ class RigOptions:
 
     def get_preset(self) -> LightingPreset:
         return LIGHTING_PRESETS.get(self.lighting_preset, LIGHTING_PRESETS["default"])
+
+    def wants_side_cam(self) -> bool:
+        return self.cam_side or self.tri_cam
+
+    def wants_high_cam(self) -> bool:
+        return self.cam_high or self.tri_cam
 
 
 @dataclass

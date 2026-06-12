@@ -94,8 +94,12 @@ def _create_area_light(
     _safe_set(f"{shape}.intensity", 1.0)
     _safe_set(f"{shape}.exposure", exposure)
     _safe_set(f"{shape}.aiSamples", config.LIGHT_SAMPLES)
-    if not _safe_set(f"{shape}.aiNormalize", 1):
-        _safe_set(f"{shape}.normalize", 1)
+    # normalize=OFF: intensity represents luminance (power/area).
+    # Area and distance both scale with bbox.size, so irradiance stays
+    # constant regardless of asset scale. normalize=ON (previous default)
+    # keeps total power fixed, causing 1/dist² darkening for larger assets.
+    if not _safe_set(f"{shape}.aiNormalize", 0):
+        _safe_set(f"{shape}.normalize", 0)
 
     cmds.xform(transform, worldSpace=True, translation=position)
     cmds.xform(transform, worldSpace=True, scale=scale)
@@ -132,13 +136,66 @@ def _cleanup_camera(name: str) -> None:
         cmds.delete(name)
 
 
+def _frame_orthographic(
+    cam_transform: str,
+    cam_shape: str,
+    bb: BBox,
+    fill_factor: float = 0.85,
+) -> float:
+    """
+    Set orthographicWidth so the whole bbox fits, accounting for render aspect.
+
+    viewFit is unreliable for ortho because it fits the bounding *sphere* to the
+    horizontal extent and ignores the 16:9 aspect — tall assets get clipped.
+    Here we project the 8 bbox corners onto the camera's right/up axes and size
+    the frame from the larger of (width-need, height-need × aspect).
+    """
+    if not cam_shape or not cmds.objExists(f"{cam_shape}.orthographicWidth"):
+        return 0.0
+
+    inv = cmds.getAttr(f"{cam_transform}.worldInverseMatrix")  # row-major, 16 floats
+
+    def _to_local(x: float, y: float, z: float) -> tuple[float, float]:
+        lx = x * inv[0] + y * inv[4] + z * inv[8] + inv[12]
+        ly = x * inv[1] + y * inv[5] + z * inv[9] + inv[13]
+        return lx, ly
+
+    corners = [
+        (bb.min_x, bb.min_y, bb.min_z), (bb.max_x, bb.min_y, bb.min_z),
+        (bb.min_x, bb.max_y, bb.min_z), (bb.max_x, bb.max_y, bb.min_z),
+        (bb.min_x, bb.min_y, bb.max_z), (bb.max_x, bb.min_y, bb.max_z),
+        (bb.min_x, bb.max_y, bb.max_z), (bb.max_x, bb.max_y, bb.max_z),
+    ]
+    half_w = 0.0
+    half_h = 0.0
+    for cx, cy, cz in corners:
+        lx, ly = _to_local(cx, cy, cz)
+        half_w = max(half_w, abs(lx))
+        half_h = max(half_h, abs(ly))
+
+    needed_width = 2.0 * half_w
+    needed_height = 2.0 * half_h
+    aspect_wh = float(config.RES_WIDTH) / float(config.RES_HEIGHT)
+
+    # orthographicWidth is the HORIZONTAL extent; vertical shown = width / aspect.
+    ortho_width = max(needed_width, needed_height * aspect_wh) / max(fill_factor, 0.01)
+    cmds.setAttr(f"{cam_shape}.orthographicWidth", ortho_width)
+    return ortho_width
+
+
 def _create_single_camera(
     name: str,
     position: tuple[float, float, float],
     aim_at: tuple[float, float, float],
     rig: str,
+    orthographic: bool = False,
+    ortho_width: float | None = None,
 ) -> tuple[str, str]:
-    """Create one camera aimed at a target point. Returns (transform, shape)."""
+    """Create one camera aimed at a target point. Returns (transform, shape).
+
+    When *orthographic* is True the camera uses parallel projection and
+    *ortho_width* controls framing (distance is irrelevant in ortho).
+    """
     _cleanup_camera(name)
 
     result = cmds.camera()
@@ -154,7 +211,7 @@ def _create_single_camera(
 
     tmp = cmds.spaceLocator(name="TA_assetRender_aim_tmp")[0]
     cmds.xform(tmp, worldSpace=True, translation=aim_at)
-    cmds.aimConstraint(
+    constraint = cmds.aimConstraint(
         tmp,
         cam_transform,
         offset=(0, 0, 0),
@@ -164,16 +221,30 @@ def _create_single_camera(
         worldUpType="vector",
         worldUpVector=(0, 1, 0),
     )
-    cmds.delete(tmp)
+    # Force DG evaluation so the constraint is solved before we bake.
+    cmds.refresh(force=True)
+    baked_rot = cmds.xform(cam_transform, query=True, worldSpace=True, rotation=True)
 
-    constraints = cmds.listRelatives(cam_transform, type="aimConstraint") or []
-    for c in constraints:
-        if cmds.objExists(c):
-            cmds.delete(c)
+    # Delete constraint first (target still alive), then locator.
+    if constraint:
+        c_node = constraint[0] if isinstance(constraint, (list, tuple)) else constraint
+        if cmds.objExists(c_node):
+            cmds.delete(c_node)
+    if cmds.objExists(tmp):
+        cmds.delete(tmp)
+
+    # Re-apply baked rotation so the camera keeps the solved orientation.
+    cmds.xform(cam_transform, worldSpace=True, rotation=baked_rot)
 
     if cam_shape and cmds.objExists(f"{cam_shape}.focalLength"):
         cmds.setAttr(f"{cam_shape}.focalLength", config.CAM_FOCAL_LENGTH)
     cmds.setAttr(f"{cam_transform}.renderable", 1)
+
+    if orthographic and cam_shape:
+        if cmds.objExists(f"{cam_shape}.orthographic"):
+            cmds.setAttr(f"{cam_shape}.orthographic", 1)
+        if ortho_width is not None and cmds.objExists(f"{cam_shape}.orthographicWidth"):
+            cmds.setAttr(f"{cam_shape}.orthographicWidth", ortho_width)
 
     cam_transform = _force_parent(cam_transform, rig)
     return cam_transform, cam_shape or ""
@@ -468,15 +539,76 @@ def build_rig(
         log.append("  + Reference kit (chrome + gray spheres)")
 
     if options.camera:
-        if options.tri_cam:
-            _create_tri_cam(bbox, dist, rig, targets or [])
-            log.append(
-                f"  + Tri-Cam ({config.CAM_NAME}, "
-                f"{config.CAM_SIDE_NAME}, {config.CAM_HIGH_NAME})"
-            )
-        else:
-            _create_camera(bbox, dist, rig)
-            log.append(f"  + Camera ({config.CAM_NAME})")
+        _create_camera(bbox, dist, rig)
+        log.append(f"  + Camera principal ({config.CAM_NAME})")
+
+    def _fit_to_targets(cam_shape: str) -> None:
+        """viewFit adjusts only distance — direction was already baked."""
+        if not cam_shape or not targets:
+            return
+        valid = [t for t in targets if cmds.objExists(t)]
+        if not valid:
+            return
+        cmds.select(valid, replace=True)
+        cmds.viewFit(cam_shape, fitFactor=0.75)
+        cmds.select(clear=True)
+
+    # Side camera (lateral)
+    if options.wants_side_cam():
+        cx2, cy2, cz2 = bbox.center
+        _, side_sh = _create_single_camera(
+            config.CAM_SIDE_NAME,
+            (cx2 + dist * 1.5, cy2 + dist * 0.3, cz2),
+            (cx2, cy2, cz2),
+            rig,
+        )
+        _fit_to_targets(side_sh)
+        log.append(f"  + Camera lateral ({config.CAM_SIDE_NAME})")
+
+    # High camera (zenith / cenital)
+    if options.wants_high_cam():
+        cx2, cy2, cz2 = bbox.center
+        _, high_sh = _create_single_camera(
+            config.CAM_HIGH_NAME,
+            (cx2, cy2 + dist * 1.5, cz2 + dist * 0.8),
+            (cx2, cy2, cz2),
+            rig,
+        )
+        _fit_to_targets(high_sh)
+        log.append(f"  + Camera cenital ({config.CAM_HIGH_NAME})")
+
+    # Iso cameras — orthographic, elevated diagonal, true game-style iso look.
+    # 0.9/0.75/0.9 gives ~45° azimuth, ~30° elevation. In ortho, distance doesn't
+    # affect framing; orthographicWidth does. We frame deterministically by
+    # projecting the bbox corners (aspect-aware) — NOT viewFit, which clips tall
+    # assets because it ignores the 16:9 aspect ratio.
+    iso_ortho_width = size * config.ISO_ORTHO_WIDTH_MULT
+    if options.cam_iso_left:
+        cx2, cy2, cz2 = bbox.center
+        iso_l_xf, iso_l_sh = _create_single_camera(
+            config.CAM_ISO_LEFT_NAME,
+            (cx2 - dist * 0.9, cy2 + dist * 0.75, cz2 + dist * 0.9),
+            (cx2, cy2, cz2),
+            rig,
+            orthographic=True,
+            ortho_width=iso_ortho_width,
+        )
+        _frame_orthographic(iso_l_xf, iso_l_sh, bbox)
+        log.append(f"  + Camera iso izquierda ortográfica ({config.CAM_ISO_LEFT_NAME})")
+
+    if options.cam_iso_right:
+        cx2, cy2, cz2 = bbox.center
+        iso_r_xf, iso_r_sh = _create_single_camera(
+            config.CAM_ISO_RIGHT_NAME,
+            (cx2 + dist * 0.9, cy2 + dist * 0.75, cz2 + dist * 0.9),
+            (cx2, cy2, cz2),
+            rig,
+            orthographic=True,
+            ortho_width=iso_ortho_width,
+        )
+        _frame_orthographic(iso_r_xf, iso_r_sh, bbox)
+        log.append(f"  + Camera iso derecha ortográfica ({config.CAM_ISO_RIGHT_NAME})")
+
 
     if options.key_light:
         key_scale = area_scale * 0.8
@@ -537,6 +669,6 @@ def build_rig(
         cmds.lookThru(config.CAM_NAME)
 
     if options.lighting_preset != "default":
-        log.append(f"  Lighting preset: {preset.label}")
+        log.append(f"  Lighting style: {preset.label}")
 
     return log
