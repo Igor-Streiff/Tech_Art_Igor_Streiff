@@ -8,15 +8,14 @@ from .bootstrap import (
     resolve_scripts_dir,
     tool_root,
 )
-from .config import LIGHTING_PRESETS, LightingPreset, RigOptions
+from .config import EXPOSURE_DEFAULTS, RigOptions
 from .core import create_setup
 from .render import fast_render
 from .ui import show
 
 __all__ = [
     "__version__",
-    "LightingPreset",
-    "LIGHTING_PRESETS",
+    "EXPOSURE_DEFAULTS",
     "RigOptions",
     "create_setup",
     "fast_render",

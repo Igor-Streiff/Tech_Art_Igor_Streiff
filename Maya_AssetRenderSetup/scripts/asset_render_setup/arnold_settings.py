@@ -16,10 +16,45 @@ def ensure_mtoa_loaded() -> bool:
     return cmds.pluginInfo("mtoa", query=True, loaded=True)
 
 
+def ensure_arnold_options() -> bool:
+    """Create defaultArnold* nodes without opening Render Settings UI."""
+    if cmds.objExists("defaultArnoldRenderOptions"):
+        return True
+    if not ensure_mtoa_loaded():
+        return False
+    try:
+        from mtoa.core import createOptions
+
+        createOptions()
+    except ImportError:
+        return False
+    return cmds.objExists("defaultArnoldRenderOptions")
+
+
+def _ensure_renderer_arnold(log: list[str]) -> None:
+    """Switch to Arnold if needed; tolerate MtoA UI refresh when panel is closed."""
+    try:
+        current = str(cmds.getAttr("defaultRenderGlobals.currentRenderer") or "").lower()
+    except RuntimeError:
+        current = ""
+    if current == "arnold":
+        log.append("Renderer: Arnold")
+        return
+    try:
+        cmds.setAttr("defaultRenderGlobals.currentRenderer", "arnold", type="string")
+        log.append("Renderer: Arnold")
+    except RuntimeError as exc:
+        # MtoA 2027 may try to refresh arnoldTabLayout when Render Settings is closed.
+        log.append(
+            "WARNING: Could not switch renderer via script "
+            f"({exc}). Set Arnold manually in Render Settings if needed."
+        )
+
+
 def apply_arnold_settings() -> list[str]:
     log: list[str] = []
-    cmds.setAttr("defaultRenderGlobals.currentRenderer", "arnold", type="string")
-    log.append("Renderer: Arnold")
+    ensure_arnold_options()
+    _ensure_renderer_arnold(log)
 
     cmds.setAttr("defaultResolution.width", config.RES_WIDTH)
     cmds.setAttr("defaultResolution.height", config.RES_HEIGHT)

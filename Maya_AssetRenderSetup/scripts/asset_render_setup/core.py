@@ -37,7 +37,10 @@ def create_setup(options: RigOptions | None = None) -> list[str]:
 
     if options.arnold_settings:
         log.append("Arnold settings:")
-        log.extend(arnold_settings.apply_arnold_settings())
+        try:
+            log.extend(arnold_settings.apply_arnold_settings())
+        except RuntimeError as exc:
+            log.append(f"WARNING: Arnold settings skipped ({exc})")
 
     log.append("=== Setup complete ===")
     active_cams = [
@@ -47,8 +50,8 @@ def create_setup(options: RigOptions | None = None) -> list[str]:
         ) if cmds.objExists(name)
     ]
     if len(active_cams) > 1:
-        log.append(f"Cámaras: {', '.join(active_cams)}")
+        log.append(f"Cameras: {', '.join(active_cams)}")
     elif active_cams:
-        log.append(f"Vista activa: {active_cams[0]}")
+        log.append(f"Active view: {active_cams[0]}")
 
     return log

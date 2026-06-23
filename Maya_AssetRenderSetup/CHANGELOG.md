@@ -2,6 +2,51 @@
 
 All notable changes to **Maya Asset Render Setup**.
 
+## [3.0.9] — 2026-06-23
+
+### Changed
+- **UI language:** all tool labels, hints, buttons, dialogs, and log messages are
+  now English (previously mixed EN/ES).
+
+## [3.0.8] — 2026-06-23
+
+### Changed
+- **Rim light** another ~30% closer (`RIM_LIGHT_OFFSET` × 0.7).
+
+## [3.0.7] — 2026-06-23
+
+### Changed
+- **Rim light** ~30% closer to the asset (`RIM_LIGHT_OFFSET` × 0.7).
+
+## [3.0.6] — 2026-06-23
+
+### Changed
+- **Cyclorama** scaled down (~40% less floor/wall/width) for character-sized assets.
+- **Rim light** placed closer behind the subject (`RIM_LIGHT_OFFSET` in `config.py`).
+
+## [3.0.5] — 2026-06-23
+
+### Fixed
+- **Create Setup / MtoA crash** (`arnoldTabLayout not found`): create Arnold options
+  via `createOptions()` and tolerate renderer UI refresh when Render Settings
+  panel is closed.
+
+### Changed
+- Light exposure sliders now start at **0 EV** (no negative values in the UI).
+
+## [3.0.4] — 2026-06-23
+
+### Changed
+- **Lighting UI:** removed style presets (Default, Hero, etc.). Each light now has
+  its own exposure slider (EV). Values persist in Maya `optionVar`s per profile.
+
+## [3.0.3] — 2026-06-23
+
+### Fixed
+- **Hero camera framing on rigged assets:** bbox is computed from visible mesh
+  shapes under the selection (not the parent group with controls), and the
+  principal camera runs `viewFit` like side/high cameras.
+
 ## [3.0.2] — 2026-06-12
 
 ### Added

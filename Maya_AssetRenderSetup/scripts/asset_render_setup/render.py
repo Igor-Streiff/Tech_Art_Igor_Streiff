@@ -167,7 +167,7 @@ def _notify_missing_setup() -> None:
         message=(
             "Fast Render needs at least one Asset Render camera.\n\n"
             "Run Create Setup first with any camera enabled\n"
-            "(Principal, Lateral, Cenital or Iso), then try again."
+            "(Hero, Side, High, or Iso), then try again."
         ),
         button=["OK"],
         defaultButton="OK",
@@ -199,7 +199,16 @@ def _project_images_dir() -> str:
 
 def _configure_render_globals(prefix_no_ext: str) -> None:
     """Point Arnold at an absolute PNG prefix (does not change AOVs)."""
-    cmds.setAttr("defaultRenderGlobals.currentRenderer", "arnold", type="string")
+    arnold_settings.ensure_arnold_options()
+    try:
+        current = str(cmds.getAttr("defaultRenderGlobals.currentRenderer") or "").lower()
+    except RuntimeError:
+        current = ""
+    if current != "arnold":
+        try:
+            cmds.setAttr("defaultRenderGlobals.currentRenderer", "arnold", type="string")
+        except RuntimeError:
+            pass
     cmds.setAttr("defaultRenderGlobals.imageFormat", 32)  # PNG
     cmds.setAttr(
         "defaultRenderGlobals.imageFilePrefix",
@@ -601,11 +610,11 @@ def fast_render(
         )
 
     if len(cameras) > 1:
-        log.append(f"Renderizando {len(cameras)} cámara(s): {', '.join(s for _, s in cameras)}")
+        log.append(f"Rendering {len(cameras)} camera(s): {', '.join(s for _, s in cameras)}")
 
     clay_render = getattr(opts, "clay_render", False)
     if clay_render:
-        log.append("Clay render ON — override temporal de materiales activo.")
+        log.append("Clay render ON — temporary material override active.")
 
     def _do_renders() -> int:
         count = 0

@@ -11,7 +11,7 @@
 ![Arnold](https://img.shields.io/badge/Arnold-MtoA-46b2e0)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-Python tool for Maya: **Arnold preview rig** — selectable cameras (hero, side, high, plus orthographic isometric left/right), three-point lighting with presets, skydome, infinity cyclorama, optional reference kit — driven by a **toggle UI** with **Fast Render** (beauty PNG per camera) and an optional **clay render** override. Everything scales to your asset bounding box without moving geometry.
+Python tool for Maya: **Arnold preview rig** — selectable cameras (hero, side, high, plus orthographic isometric left/right), three-point lighting with per-light exposure sliders, skydome, infinity cyclorama, optional reference kit — driven by a **toggle UI** with **Fast Render** (beauty PNG per camera) and an optional **clay render** override. Everything scales to your asset bounding box without moving geometry.
 
 ---
 
@@ -215,7 +215,8 @@ opts = RigOptions(
     cam_iso_left=True,      # orthographic iso views
     cam_iso_right=True,
     reference_kit=True,
-    lighting_preset="hero",
+    key_exposure=2.5,
+    rim_exposure=3.0,
     clay_render=True,       # matte clay material override
     beauty_only=True,       # beauty PNG only; ignore scene AOVs
 )
@@ -241,7 +242,7 @@ Camera flags: `camera` (hero), `cam_side`, `cam_high`, `cam_iso_left`, `cam_iso_
 ## Customization
 
 - **Lighting / cyclorama scale:** `scripts/asset_render_setup/config.py`
-- **Lighting styles:** add entries to `LIGHTING_PRESETS` in `config.py`
+- **Light exposure defaults** and placement offsets (`EXPOSURE_DEFAULTS`, `RIM_LIGHT_OFFSET`, etc.)
 - **Clay material:** `CLAY_COLOR`, `CLAY_SPECULAR`, `CLAY_ROUGHNESS` in `config.py`
 - **Iso framing margin:** `ISO_ORTHO_WIDTH_MULT` in `config.py` (or the `fill_factor` in `_frame_orthographic`)
 - **Shelf icon:** the installer uses `assets/shelf_icon.png` automatically
@@ -357,8 +358,8 @@ Quita el botón del shelf, guarda los shelves en disco y borra las `optionVar` d
 
 ## Personalización
 
-- Valores de luces, ciclorama y samples: `scripts/asset_render_setup/config.py`
-- Estilos de iluminación: añade entradas a `LIGHTING_PRESETS` en `config.py`
+- **Lights, cyclorama, samples:** `scripts/asset_render_setup/config.py`
+- **Light exposure defaults** and placement offsets (`KEY_LIGHT_OFFSET`, `RIM_LIGHT_OFFSET`, etc.)
 - Material clay: `CLAY_COLOR`, `CLAY_SPECULAR`, `CLAY_ROUGHNESS` en `config.py`
 - Margen del encuadre iso: `ISO_ORTHO_WIDTH_MULT` en `config.py`
 

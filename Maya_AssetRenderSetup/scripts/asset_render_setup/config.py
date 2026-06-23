@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-__version__ = "3.0.2"
+__version__ = "3.0.9"
 
 RIG_GRP = "TA_AssetRender_RIG"
 RIG_PREFIX = "TA_assetRender_"
@@ -39,12 +39,32 @@ REF_CHROME_COLOR = (0.95, 0.95, 0.95)
 REF_GRAY_VALUE = 0.18
 
 OPTIONVAR_OUTPUT_DIR = "TA_assetRenderSetup_outputDir"
+OPTIONVAR_KEY_EXPOSURE = "TA_assetRenderSetup_keyExposure"
+OPTIONVAR_FILL_EXPOSURE = "TA_assetRenderSetup_fillExposure"
+OPTIONVAR_RIM_EXPOSURE = "TA_assetRenderSetup_rimExposure"
+OPTIONVAR_UPLIGHT_EXPOSURE = "TA_assetRenderSetup_uplightExposure"
+OPTIONVAR_SKY_EXPOSURE = "TA_assetRenderSetup_skyExposure"
+
+# Arnold aiAreaLight / aiSkyDomeLight exposure slider range (EV).
+# 0 = neutral; higher = brighter. (Arnold allows negative EV in general, but
+# sub-zero is confusing in the UI — use 0 for ambient/off instead.)
+LIGHT_EXPOSURE_MIN = 0.0
+LIGHT_EXPOSURE_MAX = 8.0
+LIGHT_EXPOSURE_STEP = 0.1
+
+EXPOSURE_OPTIONVARS: dict[str, str] = {
+    "key": OPTIONVAR_KEY_EXPOSURE,
+    "fill": OPTIONVAR_FILL_EXPOSURE,
+    "rim": OPTIONVAR_RIM_EXPOSURE,
+    "uplight": OPTIONVAR_UPLIGHT_EXPOSURE,
+    "sky": OPTIONVAR_SKY_EXPOSURE,
+}
 
 # Fast Render file naming
 RENDER_USE_TIMESTAMP = False  # True → Asset_scene_20260521_213812.png
 PNG_INCOMPATIBLE_AOVS = frozenset({"N", "Z"})  # vector/float AOVs — skip in sidecar labels
 
-# Default beauty preset (1920x1080, no DOF)
+# Default render resolution (1920×1080, no DOF)
 RES_WIDTH = 1920
 RES_HEIGHT = 1080
 RES_ASPECT = 1.777
@@ -66,6 +86,14 @@ UPLIGHT_EXPOSURE = 2.0
 SKY_EXPOSURE = 0.2     # stable ambient base
 SKY_COLOR = (0.9, 0.92, 0.95)
 
+EXPOSURE_DEFAULTS: dict[str, float] = {
+    "key": KEY_EXPOSURE,
+    "fill": FILL_EXPOSURE,
+    "rim": RIM_EXPOSURE,
+    "uplight": UPLIGHT_EXPOSURE,
+    "sky": SKY_EXPOSURE,
+}
+
 CAM_FOCAL_LENGTH = 50.0
 DIST_MULT = 2.8
 AREA_SCALE_MULT = 1.2
@@ -83,12 +111,12 @@ CLAY_COLOR = (0.22, 0.21, 0.19)
 CLAY_SPECULAR = 0.05
 CLAY_ROUGHNESS = 0.95
 
-# Infinity cove multipliers (fraction of bbox size)
-CYC_WIDTH_MULT = 20.0
-CYC_FLOOR_DEPTH_MULT = 12.0
-CYC_CURVE_RADIUS_MULT = 2.5
-CYC_WALL_HEIGHT_MULT = 12.0
-CYC_WALL_BACK_PAD_MULT = 2.5
+# Infinity cove multipliers (fraction of bbox size) — tuned for character-scale assets.
+CYC_WIDTH_MULT = 12.0
+CYC_FLOOR_DEPTH_MULT = 7.0
+CYC_CURVE_RADIUS_MULT = 2.0
+CYC_WALL_HEIGHT_MULT = 7.0
+CYC_WALL_BACK_PAD_MULT = 1.8
 CYC_SEGS_CURVE = 32
 CYC_SEGS_WIDTH = 4
 CYC_COLOR = (0.75, 0.75, 0.75)
@@ -98,45 +126,11 @@ CYC_COLOR = (0.75, 0.75, 0.75)
 # (e.g. parent group with offset, hidden support nodes).
 CYC_FLOOR_Y_OFFSET_MULT = 0.0
 
-
-# ---------------------------------------------------------------------------
-# Lighting presets
-# ---------------------------------------------------------------------------
-
-@dataclass
-class LightingPreset:
-    label: str
-    key_exposure: float
-    fill_exposure: float
-    rim_exposure: float
-    uplight_exposure: float
-    sky_exposure: float
-    sky_color: tuple[float, float, float]
-
-
-LIGHTING_PRESETS: dict[str, LightingPreset] = {
-    # Balanced studio — key correct alone, fill opens shadows, rim as accent.
-    "default": LightingPreset(
-        "Default", KEY_EXPOSURE, FILL_EXPOSURE, RIM_EXPOSURE,
-        UPLIGHT_EXPOSURE, SKY_EXPOSURE, SKY_COLOR,
-    ),
-    # Clean product — bright key, minimal fill (4:1 ratio), subtle rim, white sky.
-    "product": LightingPreset(
-        "Product", 4.0, 2.0, 4.5, 1.5, 0.5, (1.0, 1.0, 1.0),
-    ),
-    # Dramatic — strong key, deep fill (8:1 ratio), punchy rim, near-zero sky.
-    "hero": LightingPreset(
-        "Hero", 4.5, 1.0, 6.5, 2.0, -0.5, (0.85, 0.88, 0.95),
-    ),
-    # Soft — balanced key/fill (2:1 ratio), soft rim, higher sky for diffuse look.
-    "soft_fill": LightingPreset(
-        "Soft Fill", 3.0, 2.0, 3.5, 1.5, 0.8, (0.95, 0.93, 0.9),
-    ),
-    # Blockout — strong directional key, minimal fill, skydome off. Reads form.
-    "clay": LightingPreset(
-        "Blockout", 3.5, 0.5, 5.0, 1.0, -1.0, (0.88, 0.90, 0.95),
-    ),
-}
+# Light placement offsets as fractions of dist (= bbox.size * DIST_MULT).
+# Rim sits closer behind the asset than key/fill (classic edge light).
+KEY_LIGHT_OFFSET = (0.6, 1.0, 0.4)
+FILL_LIGHT_OFFSET = (-0.8, 0.2, 0.7)
+RIM_LIGHT_OFFSET = (-0.18, 0.22, -0.27)
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +147,11 @@ class RigOptions:
     uplight: bool = False
     skydome: bool = True
     arnold_settings: bool = True
+    key_exposure: float = KEY_EXPOSURE
+    fill_exposure: float = FILL_EXPOSURE
+    rim_exposure: float = RIM_EXPOSURE
+    uplight_exposure: float = UPLIGHT_EXPOSURE
+    sky_exposure: float = SKY_EXPOSURE
     # Individual camera flags (tri_cam kept for backward compat: sets side+high)
     tri_cam: bool = False
     cam_side: bool = False
@@ -160,7 +159,6 @@ class RigOptions:
     cam_iso_left: bool = False
     cam_iso_right: bool = False
     reference_kit: bool = False
-    lighting_preset: str = "default"
     # Fast Render: when True, temporarily disable scene AOVs and keep only beauty PNGs.
     beauty_only: bool = False
     # Fast Render: when True, temporarily override all asset materials with a clay shader.
@@ -169,9 +167,6 @@ class RigOptions:
     @classmethod
     def all_enabled(cls) -> RigOptions:
         return cls()
-
-    def get_preset(self) -> LightingPreset:
-        return LIGHTING_PRESETS.get(self.lighting_preset, LIGHTING_PRESETS["default"])
 
     def wants_side_cam(self) -> bool:
         return self.cam_side or self.tri_cam

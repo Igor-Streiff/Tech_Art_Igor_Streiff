@@ -5,7 +5,7 @@ from __future__ import annotations
 import maya.cmds as cmds
 
 from . import bbox, config
-from .config import BBox, LightingPreset, RigOptions
+from .config import BBox, RigOptions
 
 
 def _as_transform(result) -> str:
@@ -489,7 +489,7 @@ def _create_cyclorama(bbox: BBox, size: float, rig: str) -> str:
 # Skydome
 # ---------------------------------------------------------------------------
 
-def _create_skydome(rig: str, preset: LightingPreset) -> str:
+def _create_skydome(rig: str, exposure: float) -> str:
     name = "TA_assetRender_skydome"
     transform = cmds.shadingNode("aiSkyDomeLight", asLight=True, name=name)
     short = (cmds.ls(transform, shortNames=True) or [transform])[0]
@@ -501,11 +501,11 @@ def _create_skydome(rig: str, preset: LightingPreset) -> str:
         raise RuntimeError("Skydome shape not found after creation.")
     shape = shapes[0]
 
-    if not _safe_set(f"{shape}.color", preset.sky_color, "double3"):
-        _safe_set(f"{shape}.colorR", preset.sky_color[0])
-        _safe_set(f"{shape}.colorG", preset.sky_color[1])
-        _safe_set(f"{shape}.colorB", preset.sky_color[2])
-    _safe_set(f"{shape}.exposure", preset.sky_exposure)
+    if not _safe_set(f"{shape}.color", config.SKY_COLOR, "double3"):
+        _safe_set(f"{shape}.colorR", config.SKY_COLOR[0])
+        _safe_set(f"{shape}.colorG", config.SKY_COLOR[1])
+        _safe_set(f"{shape}.colorB", config.SKY_COLOR[2])
+    _safe_set(f"{shape}.exposure", exposure)
     _safe_set(f"{shape}.aiSamples", config.LIGHT_SAMPLES)
 
     transform = _force_parent(transform, rig)
@@ -525,22 +525,9 @@ def build_rig(
     dist = size * config.DIST_MULT
     area_scale = size * config.AREA_SCALE_MULT
     cx, cy, cz = bbox.center
-    preset = options.get_preset()
 
     rig = cmds.group(empty=True, name=config.RIG_GRP, world=True)
     log.append(f"Created {config.RIG_GRP}")
-
-    if options.cyclorama:
-        _create_cyclorama(bbox, size, rig)
-        log.append("  + Cyclorama")
-
-    if options.reference_kit:
-        _create_reference_kit(bbox, size, rig)
-        log.append("  + Reference kit (chrome + gray spheres)")
-
-    if options.camera:
-        _create_camera(bbox, dist, rig)
-        log.append(f"  + Camera principal ({config.CAM_NAME})")
 
     def _fit_to_targets(cam_shape: str) -> None:
         """viewFit adjusts only distance — direction was already baked."""
@@ -553,6 +540,21 @@ def build_rig(
         cmds.viewFit(cam_shape, fitFactor=0.75)
         cmds.select(clear=True)
 
+    if options.cyclorama:
+        _create_cyclorama(bbox, size, rig)
+        log.append("  + Cyclorama")
+
+    if options.reference_kit:
+        _create_reference_kit(bbox, size, rig)
+        log.append("  + Reference kit (chrome + gray spheres)")
+
+    if options.camera:
+        cam_xf = _create_camera(bbox, dist, rig)
+        cam_shapes = cmds.listRelatives(cam_xf, shapes=True, type="camera") or []
+        if cam_shapes:
+            _fit_to_targets(cam_shapes[0])
+        log.append(f"  + Hero camera ({config.CAM_NAME})")
+
     # Side camera (lateral)
     if options.wants_side_cam():
         cx2, cy2, cz2 = bbox.center
@@ -563,7 +565,7 @@ def build_rig(
             rig,
         )
         _fit_to_targets(side_sh)
-        log.append(f"  + Camera lateral ({config.CAM_SIDE_NAME})")
+        log.append(f"  + Side camera ({config.CAM_SIDE_NAME})")
 
     # High camera (zenith / cenital)
     if options.wants_high_cam():
@@ -575,7 +577,7 @@ def build_rig(
             rig,
         )
         _fit_to_targets(high_sh)
-        log.append(f"  + Camera cenital ({config.CAM_HIGH_NAME})")
+        log.append(f"  + High camera ({config.CAM_HIGH_NAME})")
 
     # Iso cameras — orthographic, elevated diagonal, true game-style iso look.
     # 0.9/0.75/0.9 gives ~45° azimuth, ~30° elevation. In ortho, distance doesn't
@@ -594,7 +596,7 @@ def build_rig(
             ortho_width=iso_ortho_width,
         )
         _frame_orthographic(iso_l_xf, iso_l_sh, bbox)
-        log.append(f"  + Camera iso izquierda ortográfica ({config.CAM_ISO_LEFT_NAME})")
+        log.append(f"  + Orthographic iso left ({config.CAM_ISO_LEFT_NAME})")
 
     if options.cam_iso_right:
         cx2, cy2, cz2 = bbox.center
@@ -607,44 +609,47 @@ def build_rig(
             ortho_width=iso_ortho_width,
         )
         _frame_orthographic(iso_r_xf, iso_r_sh, bbox)
-        log.append(f"  + Camera iso derecha ortográfica ({config.CAM_ISO_RIGHT_NAME})")
+        log.append(f"  + Orthographic iso right ({config.CAM_ISO_RIGHT_NAME})")
 
 
     if options.key_light:
         key_scale = area_scale * 0.8
+        kx, ky, kz = config.KEY_LIGHT_OFFSET
         _create_area_light(
             "TA_assetRender_key",
-            (cx + dist * 0.6, cy + dist * 1.0, cz + dist * 0.4),
+            (cx + dist * kx, cy + dist * ky, cz + dist * kz),
             (key_scale, key_scale, 1.0),
-            preset.key_exposure,
+            options.key_exposure,
             (cx, cy, cz),
             rig,
         )
-        log.append(f"  + Key light (exposure: {preset.key_exposure})")
+        log.append(f"  + Key light (exposure: {options.key_exposure})")
 
     if options.fill_light:
         fill_scale = area_scale * 1.6
+        fx, fy, fz = config.FILL_LIGHT_OFFSET
         _create_area_light(
             "TA_assetRender_fill",
-            (cx - dist * 0.8, cy + dist * 0.2, cz + dist * 0.7),
+            (cx + dist * fx, cy + dist * fy, cz + dist * fz),
             (fill_scale, fill_scale, 1.0),
-            preset.fill_exposure,
+            options.fill_exposure,
             (cx, cy, cz),
             rig,
         )
-        log.append(f"  + Fill light (exposure: {preset.fill_exposure})")
+        log.append(f"  + Fill light (exposure: {options.fill_exposure})")
 
     if options.rim_light:
         rim_scale = area_scale * 0.6
+        rx, ry, rz = config.RIM_LIGHT_OFFSET
         _create_area_light(
             "TA_assetRender_rim",
-            (cx - dist * 0.5, cy + dist * 1.0, cz - dist * 0.3),
+            (cx + dist * rx, cy + dist * ry, cz + dist * rz),
             (rim_scale, rim_scale, 1.0),
-            preset.rim_exposure,
+            options.rim_exposure,
             (cx, cy, cz),
             rig,
         )
-        log.append(f"  + Rim light (exposure: {preset.rim_exposure})")
+        log.append(f"  + Rim light (exposure: {options.rim_exposure})")
 
     if options.uplight:
         uplight_scale = area_scale * 1.5
@@ -655,20 +660,17 @@ def build_rig(
             "TA_assetRender_uplight",
             (cx, light_y, light_z),
             (uplight_scale, uplight_scale * 0.6, 1.0),
-            preset.uplight_exposure,
+            options.uplight_exposure,
             (cx, aim_y, cz),
             rig,
         )
-        log.append(f"  + Uplight (contrapicado, exposure: {preset.uplight_exposure})")
+        log.append(f"  + Uplight (from below, exposure: {options.uplight_exposure})")
 
     if options.skydome:
-        _create_skydome(rig, preset)
-        log.append(f"  + Skydome (exposure: {preset.sky_exposure})")
+        _create_skydome(rig, options.sky_exposure)
+        log.append(f"  + Skydome (exposure: {options.sky_exposure})")
 
     if options.camera and cmds.objExists(config.CAM_NAME):
         cmds.lookThru(config.CAM_NAME)
-
-    if options.lighting_preset != "default":
-        log.append(f"  Lighting style: {preset.label}")
 
     return log
