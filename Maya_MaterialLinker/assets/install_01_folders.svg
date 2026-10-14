@@ -14,7 +14,7 @@
 <text x="73" y="407" class="small">Open this example later in the Script Editor.</text>
 <rect x="565" y="110" width="500" height="330" rx="12" fill="white" stroke="#b9cddc"/>
 <text x="588" y="149" class="sub">2. Your Maya project</text>
-<text x="588" y="185" class="code">MatLink_Demo/</text>
+<text x="588" y="185" class="code">Rusty_LookDev/</text>
 <rect x="585" y="203" width="457" height="79" rx="7" fill="#e1f0ff"/>
 <text x="603" y="232" class="code">scripts/</text><text x="630" y="263" class="code">material_linker/</text>
 <rect x="585" y="294" width="457" height="46" rx="7" fill="#e4f6e8"/>
@@ -27,5 +27,5 @@
 <text x="58" y="533" class="code">Asset_Rusty2_M_Madera_Organico_BaseColor.tif</text>
 <text x="58" y="564" class="code">Asset_Rusty2_M_Madera_Organico_Normal.tif</text>
 <text x="58" y="596" class="small">Also export Roughness and Metalness. Match texture tokens to existing scene materials in the JSON.</text>
-<text x="40" y="644" class="small">Folder-layout guide · MatLink_Demo is an example project name.</text>
+<text x="40" y="644" class="small">Folder-layout guide · Rusty_LookDev is an example project name.</text>
 </svg>

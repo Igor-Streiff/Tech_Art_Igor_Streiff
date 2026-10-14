@@ -15,7 +15,7 @@ A Python prototype that connects Substance Painter PBR exports to existing Arnol
 
 ### Running Material Linker
 
-![Material Linker executed in Maya's Script Editor, with the cursor and generated report](assets/demo_MaterialLinker_execution.gif)
+![Material Linker executed in Maya's Script Editor, with the cursor and generated report](assets/demo_MaterialLinker_execution_v2.gif)
 
 Live recording after loading the script and reviewing the dry-run: click **Execute** to run `run_linker.run(config_path, dry_run=False)`. The script connects the textures and prints the report in the Script Editor.
 
@@ -45,19 +45,19 @@ Download or clone this repository, then open the `Maya_MaterialLinker/` folder.
 2. Copy [`material_link_map.json`](material_link_map.json) into the project root and edit its prefix, material aliases, and ignored maps for your asset.
 3. Put your exported textures in the project's `sourceimages/` folder. Materials must already exist in the scene.
 
-![Where to copy the script folder, JSON configuration, and texture exports](assets/install_01_folders.png)
+![Where to copy the script folder, JSON configuration, and texture exports](assets/install_01_folders_v2.png)
 
 4. In Maya, use **File → Set Project** and select the **project root** containing `scripts/`, `sourceimages/`, and `material_link_map.json`. Open a copy of your scene. Arnold / MtoA must be loaded.
 
-![Maya Set Project dialog showing the example project folder](assets/install_02_set_project.png)
+![Maya Set Project dialog showing the example project folder](assets/install_02_set_project_v2.png)
 
 5. Open the **Script Editor**, choose **File → Open Script**, and select [`examples/load_in_maya.py`](examples/load_in_maya.py) from the downloaded tool. In the **Load Script** dialog, click **Open**.
 
-![Maya Load Script dialog with load_in_maya.py selected](assets/install_03_open_script.jpg)
+![Maya Load Script dialog showing load_in_maya.py](assets/install_03_open_script_v2.jpg)
 
 6. Execute the loaded script in its **Python** tab. It runs a **dry-run** first.
 
-![Maya Script Editor with the Material Linker loading example](assets/00_load_script.png)
+![Maya Script Editor with the Material Linker loading example](assets/00_load_script_v2.png)
 
 Review the report, then apply from the same Python tab:
 
@@ -65,7 +65,7 @@ Review the report, then apply from the same Python tab:
 report = run_linker.run(config_path, dry_run=False)
 ```
 
-The loading example uses the current Maya project to locate the scripts and JSON configuration, so no machine-specific path is required. `MatLink_Demo` is the example project shown in the installation images; use your own project folder.
+The loading example uses your active Maya project to find the scripts and config. **Rusty_LookDev** is the asset project in these images; **Maya_MaterialLinker** is the downloaded tool folder.
 
 ## Configure Material Aliases
 
@@ -144,7 +144,7 @@ Prototipo Python que conecta mapas PBR exportados de Substance Painter con mater
 
 ### Material Linker en Uso
 
-![Ejecución real de Material Linker desde el Script Editor, con cursor y reporte](assets/demo_MaterialLinker_execution.gif)
+![Ejecución real de Material Linker desde el Script Editor, con cursor y reporte](assets/demo_MaterialLinker_execution_v2.gif)
 
 Grabación real después de cargar el script y revisar el dry-run: clic en **Execute** para ejecutar `run_linker.run(config_path, dry_run=False)`. El script conecta las texturas y muestra el reporte en el Script Editor.
 
@@ -174,19 +174,19 @@ Descargá o cloná este repositorio y abrí la carpeta `Maya_MaterialLinker/`.
 2. Copiá [`material_link_map.json`](material_link_map.json) en la raíz del proyecto. Ajustá el prefijo, los aliases y los mapas omitidos para tu asset.
 3. Colocá las texturas exportadas en `sourceimages/`. Los materiales deben existir en la escena.
 
-![Dónde colocar la carpeta del script, la configuración JSON y las texturas exportadas](assets/install_01_folders_es.png)
+![Dónde colocar la carpeta del script, la configuración JSON y las texturas exportadas](assets/install_01_folders_es_v2.png)
 
 4. En Maya, elegí **File → Set Project** y seleccioná la **raíz del proyecto** que contiene `scripts/`, `sourceimages/` y `material_link_map.json`. Abrí una copia de la escena. Arnold / MtoA debe estar cargado.
 
-![Selector Set Project de Maya con la carpeta del proyecto de ejemplo](assets/install_02_set_project.png)
+![Selector Set Project de Maya con la carpeta del proyecto de ejemplo](assets/install_02_set_project_v2.png)
 
 5. Abrí el **Script Editor**, elegí **File → Open Script** y seleccioná [`examples/load_in_maya.py`](examples/load_in_maya.py) dentro de la tool descargada. En la ventana **Load Script**, presioná **Open**.
 
-![Selector Load Script de Maya con load_in_maya.py seleccionado](assets/install_03_open_script.jpg)
+![Selector Load Script de Maya con el archivo load_in_maya.py](assets/install_03_open_script_v2.jpg)
 
 6. Ejecutá el script desde su pestaña **Python**. Primero hace un **dry-run**.
 
-![Script Editor con el ejemplo de carga de Material Linker](assets/00_load_script.png)
+![Script Editor con el ejemplo de carga de Material Linker](assets/00_load_script_v2.png)
 
 Revisá el reporte y después aplicá desde la misma pestaña Python:
 
@@ -194,7 +194,7 @@ Revisá el reporte y después aplicá desde la misma pestaña Python:
 report = run_linker.run(config_path, dry_run=False)
 ```
 
-El ejemplo encuentra los scripts y la configuración JSON a partir del proyecto activo de Maya; no necesita una ruta específica de tu PC. `MatLink_Demo` es el proyecto de ejemplo de las imágenes; usá la carpeta de tu propio proyecto.
+El ejemplo usa tu proyecto activo de Maya para encontrar los scripts y la configuración. **Rusty_LookDev** es el proyecto del asset en estas imágenes; **Maya_MaterialLinker** es la carpeta de la tool descargada.
 
 ## Configurar Aliases
 
