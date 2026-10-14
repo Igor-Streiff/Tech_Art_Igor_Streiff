@@ -1,5 +1,7 @@
 # Rig Renamer — Naming de controles en Maya
 
+![Rig Renamer: revisar y normalizar nombres de controles en Maya](assets/Banner_RigRenamer.png)
+
 Herramienta Python para ordenar nombres de controles de rig con una convención consistente. Reconoce variantes como `hand_l_ctrl`, `lf_foot_control` y `rt_hand_CON`, propone los nombres nuevos y permite revisar el plan antes de aplicarlo.
 
 ```text
