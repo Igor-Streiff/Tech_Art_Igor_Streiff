@@ -13,6 +13,14 @@ A Python prototype that connects Substance Painter PBR exports to existing Arnol
 
 ## Demo
 
+### Running Material Linker
+
+![Material Linker executed in Maya's Script Editor, with the cursor and generated report](assets/demo_MaterialLinker_execution.gif)
+
+Live recording after loading the script and reviewing the dry-run: click **Execute** to run `run_linker.run(config_path, dry_run=False)`. The script connects the textures and prints the report in the Script Editor.
+
+### Generated Material Connections
+
 ![Before and after: texture maps connected automatically to an Arnold material](assets/demo_MaterialLinker.gif)
 
 Real Maya Node Editor captures from a verification scene using the original Rusty texture exports. **18 maps found, 12 maps connected across three materials**, with Height and Emissive excluded by configuration. Running the linker again recognized all 12 existing links and created no additional nodes.
@@ -121,6 +129,14 @@ Developed by **Igor G. Streiff** for the Max Sarlija Academy Tech Art course. [M
 Prototipo Python que conecta mapas PBR exportados de Substance Painter con materiales Arnold `aiStandardSurface` existentes en Maya. Reconoce nombres de textura, permite definir aliases cuando el material y el token usan nombres distintos, y reporta qué conectó o dejó sin conectar.
 
 ## Demostración
+
+### Material Linker en Uso
+
+![Ejecución real de Material Linker desde el Script Editor, con cursor y reporte](assets/demo_MaterialLinker_execution.gif)
+
+Grabación real después de cargar el script y revisar el dry-run: clic en **Execute** para ejecutar `run_linker.run(config_path, dry_run=False)`. El script conecta las texturas y muestra el reporte en el Script Editor.
+
+### Conexiones Generadas
 
 ![Antes y después de conectar automáticamente los mapas de un material Arnold](assets/demo_MaterialLinker.gif)
 
