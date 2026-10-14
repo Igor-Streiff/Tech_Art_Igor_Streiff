@@ -9,6 +9,7 @@ Repositorio índice de herramientas y proyectos del curso **Tech Art** (Max Sarl
 | [Maya_AssetRenderSetup](Maya_AssetRenderSetup/) | Herramienta Maya — rig de render Arnold | Carpeta en este repo |
 | [UE_AssetAuditor_Tool](UE_AssetAuditor_Tool/) | Herramienta Unreal — auditoría de assets | Carpeta en este repo |
 | [Maya_RigRenamer](Maya_RigRenamer/) | Herramienta Maya — naming de controles de rig | GIF, guía de carga y uso |
+| [Maya_MaterialLinker](Maya_MaterialLinker/) | Herramienta Maya — conexión de texturas PBR con Arnold | GIF, guía de carga y uso |
 
 ## VoxelParty (submódulo)
 
@@ -29,4 +30,5 @@ Tech_Art_Igor_Streiff/
   Maya_AssetRenderSetup/
   UE_AssetAuditor_Tool/
   Maya_RigRenamer/
+  Maya_MaterialLinker/
 ```

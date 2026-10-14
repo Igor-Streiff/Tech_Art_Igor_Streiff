@@ -1,0 +1,57 @@
+{
+  "$schema_note": "Material Linker config — see CONVENTION below",
+  "convention": {
+    "texture_filename": "{texture_prefix}_M_{texture_token}_{map_suffix}{ext}",
+    "maya_material_auto": "M_{texture_token}",
+    "example_texture": "Asset_Rusty2_M_Cuerpo_Desgastado_BaseColor.tif",
+    "example_material": "M_Cuerpo_Desgastado"
+  },
+  "arnold_map_bindings": {
+    "BaseColor": {
+      "attribute": "base_color",
+      "node_chain": "file -> aiStandardSurface (direct)",
+      "file_color_space": "sRGB"
+    },
+    "Roughness": {
+      "attribute": "specular_roughness",
+      "node_chain": "file.outColorR -> aiStandardSurface",
+      "file_color_space": "Raw"
+    },
+    "Metalness": {
+      "attribute": "metalness",
+      "node_chain": "file.outColorR -> aiStandardSurface",
+      "file_color_space": "Raw"
+    },
+    "Normal": {
+      "attribute": "normal_camera",
+      "node_chain": "file -> aiNormalMap",
+      "file_color_space": "Raw"
+    },
+    "Emissive": {
+      "attribute": "emission_color",
+      "node_chain": "file -> aiStandardSurface (optional)",
+      "file_color_space": "sRGB",
+      "also_set": { "emission": 1.0 },
+      "optional": true,
+      "note": "Omit via skip_maps in material_link_map.json if asset has no emission"
+    },
+    "Height": {
+      "attribute": "bump",
+      "node_chain": "file -> aiBump2d",
+      "file_color_space": "Raw",
+      "optional": true
+    }
+  },
+  "config_fields": {
+    "texture_prefix": "Leading token in exported texture names (e.g. Asset_Rusty2)",
+    "sourceimages_subdir": "Folder under Maya project root (default: sourceimages)",
+    "texture_extensions": "Allowed file extensions",
+    "skip_maps": "Map suffixes to ignore (e.g. Emissive, Height)",
+    "mappings": [
+      {
+        "maya_material": "Shader node name in Maya (aiStandardSurface)",
+        "texture_token": "Middle token in texture filename after _M_"
+      }
+    ]
+  }
+}

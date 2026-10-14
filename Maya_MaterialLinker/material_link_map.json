@@ -1,0 +1,20 @@
+{
+  "texture_prefix": "Asset_Rusty2",
+  "sourceimages_subdir": "sourceimages",
+  "texture_extensions": [".tif", ".tiff", ".png", ".exr"],
+  "skip_maps": ["Emissive", "Height"],
+  "mappings": [
+    {
+      "maya_material": "M_face_Arnold",
+      "texture_token": "Madera_Organico"
+    },
+    {
+      "maya_material": "M_Cuerpo_Arnold",
+      "texture_token": "Cuerpo_Desgastado"
+    },
+    {
+      "maya_material": "M_Detalles_Arnold",
+      "texture_token": "Metal_Detalles"
+    }
+  ]
+}
