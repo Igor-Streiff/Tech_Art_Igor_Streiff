@@ -1,3 +1,140 @@
+<p align="center">
+  <a href="#english-version">English</a> | <a href="#spanish-version">Español</a>
+</p>
+
+---
+
+<a id="english-version"></a>
+# Rig Renamer — Maya Rig Control Naming
+
+![Rig Renamer: preview and standardize Maya rig control names](assets/Banner_RigRenamer_EN.png)
+
+A Python tool for organizing rig control names with a consistent convention. It recognizes variations such as `hand_l_ctrl`, `lf_foot_control`, and `rt_hand_CON`, proposes new names, and lets you review the plan before applying it.
+
+```text
+hand_l_ctrl → hero_L_hand_CTL
+```
+
+Naming format: `<character>_<side>_<part>_<type>`.
+
+## Demo
+
+![Rig Renamer: preview the plan, apply eight renames, and verify the result](assets/demo_RigRenamer.gif)
+
+A sequence of real Maya screenshots: **Dry-run → RENOMBRAR (Rename) → verification Dry-run**. The demo rig contains eight controls and a connected animation curve. After renaming, the animation connection is retained and no renames remain pending.
+
+## Features
+
+- Normalizes side and control-type variations, including English and Spanish aliases.
+- Displays an `OLD → NEW` table before changing the scene.
+- Detects naming collisions in the plan and prefixes belonging to another character.
+- Skips geometry, groups, and joints in the default control-only mode.
+- Logs changes and checks for newly orphaned animation curves.
+
+## Load the Script in Maya
+
+Download the tool and keep **the entire folder together**: the launcher requires the adjacent `rig_renamer/` package.
+
+### Open Without Installing a Shelf Button
+
+1. Open Maya's **Script Editor** (`Windows → General Editors → Script Editor`).
+2. In the Script Editor, choose **File → Open Script** and select [`run_in_maya.py`](run_in_maya.py).
+3. Run the file with **Execute** (▶). If Maya asks for its location, select the tool folder containing `rig_renamer.py`.
+4. The **Rig Renamer** window opens.
+
+![Maya Script Editor with run_in_maya.py loaded in a Python tab](assets/00_cargar_script.png)
+
+**Alternative using an explicit path:** in a Python tab of the Script Editor, replace the path with your tool folder's location and run:
+
+```python
+import runpy
+runpy.run_path(r"C:/path/to/Maya_RigRenamer/run_in_maya.py", run_name="__main__")
+```
+
+### Install a Shelf Button
+
+Drag [`drag_to_install_maya.py`](drag_to_install_maya.py) from your file explorer into Maya's viewport. This creates a **Rig Renamer** button on the active shelf and registers the tool's location for future sessions.
+
+If you move the folder, install it again. To remove the button and its registration, use [`drag_to_uninstall_maya.py`](drag_to_uninstall_maya.py).
+
+## Use the Tool
+
+Open a copy of your scene and select the rig's top group. The screenshots show the original Spanish UI labels; the steps below use those same labels.
+
+![Rig Renamer interface: rig top group, character prefix, and action buttons](assets/01_interfaz.png)
+
+1. Set **Top-group del rig** to the rig's top group, or click **Usar selección** (Use selection).
+2. Enter the character name in **Prefijo personaje** (Character prefix). The demo uses `hero`.
+3. Click **Dry-run** and review the proposed names in the table. This step does not rename nodes.
+
+![Dry-run showing eight planned renames and the original and proposed names](assets/02_dry_run.png)
+
+4. If the plan is correct, click **RENOMBRAR** (Rename). The result panel reports how many changes were applied and whether new orphaned animation curves were detected.
+
+![Result: eight renames applied, with no newly orphaned animation curves in the demo rig](assets/03_resultado.png)
+
+5. Run **Dry-run** again to verify that no renames remain pending.
+
+## Requirements
+
+- Maya 2024+ for the UI and scene operations.
+- Python 3.11+ for the offline parser.
+- No external Python dependencies.
+
+The demo was verified in **Maya 2027** using a test rig created for this demonstration. All **52 tests** for the core and its utilities were also run.
+
+<details>
+<summary>CLI, tests, and code structure</summary>
+
+### Test the Parser Without Maya
+
+```bash
+python rig_renamer.py --character hero --sample samples/control_names.json
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+### Run Against a Maya Scene
+
+From an environment with access to `maya.cmds`:
+
+```bash
+python rig_renamer.py --rig hero:root_grp --character hero
+python rig_renamer.py --rig hero:root_grp --character hero --apply
+```
+
+[`Run-Renamer-Maya.ps1`](Run-Renamer-Maya.ps1) is also included to run the CLI with `mayapy`.
+
+By default, the tool processes controls (`CTL`). The CLI can include joints with `--include-joints`, or select types with `--types CTL,JNT,GRP`.
+
+### Structure
+
+```text
+run_in_maya.py             # Open the UI
+drag_to_install_maya.py    # Install the shelf button
+rig_renamer.py            # CLI entry point
+rig_renamer/
+  naming.py               # Parser and classification
+  conventions.py          # Naming conventions and aliases
+  core.py                 # Rename plan
+  validate.py             # Validation
+  runner.py               # Shared UI and CLI workflow
+  maya_ui.py              # User interface
+  maya_ops.py             # Maya node operations
+tests/                    # Automated tests
+samples/                  # Example names
+assets/                   # Demo GIF and screenshots
+```
+
+The naming core is pure Python. A Blender adapter is documented in [docs/BLENDER.md](docs/BLENDER.md), and the naming-convention research is available in [docs/INVESTIGACION.md](docs/INVESTIGACION.md).
+
+</details>
+
+Developed by **Igor Streiff** as a Tech Art tool, building on an exercise from the Max Sarlija Academy course.
+
+
+---
+
+<a id="spanish-version"></a>
 # Rig Renamer — Naming de controles en Maya
 
 ![Rig Renamer: revisar y normalizar nombres de controles en Maya](assets/Banner_RigRenamer.png)
