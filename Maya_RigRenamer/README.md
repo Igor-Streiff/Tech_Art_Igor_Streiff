@@ -30,7 +30,7 @@ Descargá la herramienta y conservá **la carpeta completa**: el launcher necesi
 
 1. Abrí el **Script Editor** de Maya (`Windows → General Editors → Script Editor`).
 2. En el Script Editor, elegí **File → Open Script** y seleccioná [`run_in_maya.py`](run_in_maya.py).
-3. Ejecutá el archivo con **Execute** (▶). Si Maya pide la ubicación, seleccioná la carpeta `RigRenamer_Tool` completa.
+3. Ejecutá el archivo con **Execute** (▶). Si Maya pide la ubicación, seleccioná la carpeta de la herramienta, donde está `rig_renamer.py`.
 4. Se abrirá la ventana **Rig Renamer**.
 
 ![Script Editor de Maya con run_in_maya.py cargado en una pestaña Python](assets/00_cargar_script.png)
@@ -39,7 +39,7 @@ Descargá la herramienta y conservá **la carpeta completa**: el launcher necesi
 
 ```python
 import runpy
-runpy.run_path(r"C:/tu/ruta/RigRenamer_Tool/run_in_maya.py", run_name="__main__")
+runpy.run_path(r"C:/tu/ruta/Maya_RigRenamer/run_in_maya.py", run_name="__main__")
 ```
 
 ### Instalar un botón en el shelf
