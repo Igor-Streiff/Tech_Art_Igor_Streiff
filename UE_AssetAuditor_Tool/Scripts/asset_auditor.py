@@ -7,7 +7,7 @@ import datetime
 
 class UEAssetAuditorDB:
     """
-    Technical Asset Auditor for Unreal Engine 5.
+    Asset inventory and basic configuration review for Unreal Engine 5.
     Generates a versioned JSON report AND an interactive HTML dashboard.
     """
 
@@ -22,6 +22,7 @@ class UEAssetAuditorDB:
             "scene": self.scene_name,
             "version": self.version,
             "author": "Igor G. Streiff",
+            "partial": False,
             "summary": {
                 "meshes": 0,
                 "textures": 0,
@@ -83,13 +84,29 @@ class UEAssetAuditorDB:
         )
         return self.asset_reg.get_assets(ar_filter)
 
-    def _warn(self, tag, message, priority="Medium"):
+    def _warn(self, tag, message, priority="Low"):
         self.report["warnings"].append({
             "tag": tag,
             "msg": message,
             "priority": priority
         })
         self.report["summary"]["warnings"] += 1
+
+    def _unavailable(self, name, field, exc):
+        self.report["partial"] = True
+        self._warn("READ_ERROR", "'{}': {} unavailable; see Unreal log.".format(name, field))
+        unreal.log_warning("Auditor: {} / {}: {}".format(name, field, exc))
+
+    def _read(self, name, field, getter):
+        """Keep an unavailable property distinct from a measured zero or False."""
+        try:
+            value = getter()
+            if value is None:
+                raise ValueError("No value returned")
+            return value
+        except Exception as exc:
+            self._unavailable(name, field, exc)
+            return None
 
     # ------------------------------------------------------------------
     # Audit modules
@@ -107,56 +124,42 @@ class UEAssetAuditorDB:
             task.make_dialog(True)
             for ad in assets:
                 if task.should_cancel():
+                    self.report["partial"] = True
                     break
                 task.enter_progress_frame(1, str(ad.asset_name))
                 try:
                     mesh = ad.get_asset()
                     if mesh is None:
+                        self._unavailable(str(ad.asset_name), "asset loading", "Asset could not be loaded")
                         continue
-                    num_lods = mesh.get_num_lods()
-                    nanite_cfg = mesh.get_editor_property("nanite_settings")
-                    nanite_on = nanite_cfg.enabled if nanite_cfg else False
-                    mat_slots = len(mesh.static_materials)
                     name = str(ad.asset_name)
+                    num_lods = self._read(name, "LOD count", lambda: mesh.get_num_lods())
+                    nanite_on = self._read(name, "Nanite setting",
+                                           lambda: mesh.get_editor_property("nanite_settings").enabled)
+                    mat_slots = self._read(name, "material slots", lambda: len(mesh.static_materials))
 
-                    # Collision check
-                    complex_as_simple = False
-                    try:
+                    def collision_setting():
                         body_setup = mesh.get_editor_property("body_setup")
-                        if body_setup:
-                            c_flag = body_setup.get_editor_property("collision_trace_flag")
-                            if str(c_flag) == "CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE":
-                                complex_as_simple = True
-                    except Exception:
-                        pass
+                        if body_setup is None:
+                            return False
+                        flag = body_setup.get_editor_property("collision_trace_flag")
+                        if flag is None:
+                            raise ValueError('Collision flag unavailable')
+                        return flag == unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE
 
-                    # Geometry data from LOD 0 (base mesh)
-                    vertices = 0
-                    triangles = 0
-                    has_ngon_risk = False
-                    try:
-                        vertices = mesh.get_num_vertices(0)
-                        triangles = mesh.get_num_triangles(0)
-                        # Heuristic: in a clean quad mesh, tris ~ verts * 2.
-                        # If tris/verts ratio is unusually high, source likely had ngons.
-                        if vertices > 0 and triangles > 0:
-                            ratio = triangles / vertices
-                            if ratio > 3.0:
-                                has_ngon_risk = True
-                    except Exception:
-                        pass
+                    complex_as_simple = self._read(name, "collision setting", collision_setting)
+                    vertices = self._read(name, "LOD 0 vertices", lambda: mesh.get_num_vertices(0))
+                    triangles = self._read(name, "LOD 0 triangles", lambda: mesh.get_num_triangles(0))
 
                     # Warnings
-                    if not nanite_on and num_lods < 3:
-                        self._warn("MESH_LOD", "'{}' has no Nanite and less than 3 LODs.".format(name), "High")
-                    if mat_slots > 5:
-                        self._warn("MESH_SLOTS", "'{}' has {} material slots. Consider merging.".format(name, mat_slots), "Medium")
-                    if triangles > high_poly_threshold:
-                        self._warn("MESH_HEAVY", "'{}' has {:,} triangles. Consider optimization.".format(name, triangles), "High")
-                    if has_ngon_risk:
-                        self._warn("MESH_NGON", "'{}' has suspicious topology (possible ngons in source).".format(name), "Low")
+                    if nanite_on is False and num_lods is not None and num_lods < 3:
+                        self._warn("MESH_LOD", "'{}': Nanite off and fewer than 3 LODs; review for intended use.".format(name), "Low")
+                    if mat_slots is not None and mat_slots > 5:
+                        self._warn("MESH_SLOTS", "'{}': {} material slots exceed the review threshold of 5.".format(name, mat_slots), "Low")
+                    if triangles is not None and triangles > high_poly_threshold:
+                        self._warn("MESH_HEAVY", "'{}': {:,} LOD 0 triangles exceed the review threshold of {:,}; runtime cost not measured.".format(name, triangles, high_poly_threshold), "Low")
                     if complex_as_simple:
-                        self._warn("MESH_COLLISION", "'{}' uses Complex Collision as Simple (high CPU cost).".format(name), "High")
+                        self._warn("MESH_COLLISION", "'{}': Complex Collision as Simple is configured; review collision usage.".format(name), "Low")
 
                     self.report["meshes"].append({
                         "name": name,
@@ -164,13 +167,12 @@ class UEAssetAuditorDB:
                         "triangles": triangles,
                         "lods": num_lods,
                         "nanite": nanite_on,
-                        "ngon_risk": has_ngon_risk,
                         "complex_collision": complex_as_simple,
                         "material_slots": mat_slots,
                         "path": str(ad.package_name)
                     })
                 except Exception as exc:
-                    unreal.log_warning("Auditor: mesh error on {}: {}".format(ad.asset_name, exc))
+                    self._unavailable(str(ad.asset_name), "asset inspection", exc)
 
     def audit_textures(self, max_res=2048):
         unreal.log("Auditor: Scanning textures...")
@@ -184,18 +186,20 @@ class UEAssetAuditorDB:
             task.make_dialog(True)
             for ad in assets:
                 if task.should_cancel():
+                    self.report["partial"] = True
                     break
                 task.enter_progress_frame(1, str(ad.asset_name))
                 try:
                     tex = ad.get_asset()
                     if tex is None:
+                        self._unavailable(str(ad.asset_name), "asset loading", "Asset could not be loaded")
                         continue
-                    w = tex.blueprint_get_size_x()
-                    h = tex.blueprint_get_size_y()
                     name = str(ad.asset_name)
+                    w = self._read(name, "texture width", lambda: tex.blueprint_get_size_x())
+                    h = self._read(name, "texture height", lambda: tex.blueprint_get_size_y())
 
-                    if w > max_res or h > max_res:
-                        self._warn("TEX_LARGE", "'{}' is {}x{}.".format(name, w, h), "Medium")
+                    if (w is not None and w > max_res) or (h is not None and h > max_res):
+                        self._warn("TEX_LARGE", "'{}': {}x{} exceeds the review threshold of {} px; memory usage not measured.".format(name, w if w is not None else "N/A", h if h is not None else "N/A", max_res), "Low")
 
                     self.report["textures"].append({
                         "name": name,
@@ -204,7 +208,7 @@ class UEAssetAuditorDB:
                         "path": str(ad.package_name)
                     })
                 except Exception as exc:
-                    unreal.log_warning("Auditor: texture error on {}: {}".format(ad.asset_name, exc))
+                    self._unavailable(str(ad.asset_name), "asset inspection", exc)
 
     def audit_materials(self):
         unreal.log("Auditor: Scanning materials...")
@@ -218,24 +222,27 @@ class UEAssetAuditorDB:
             task.make_dialog(True)
             for ad in assets:
                 if task.should_cancel():
+                    self.report["partial"] = True
                     break
                 task.enter_progress_frame(1, str(ad.asset_name))
                 try:
                     mat = ad.get_asset()
                     if mat is None:
+                        self._unavailable(str(ad.asset_name), "asset loading", "Asset could not be loaded")
                         continue
                     name = str(ad.asset_name)
-                    blend = mat.get_editor_property("blend_mode")
+                    blend = self._read(name, "blend mode", lambda: mat.get_editor_property("blend_mode"))
 
                     if blend == unreal.BlendMode.BLEND_TRANSLUCENT:
-                        self._warn("MAT_TRANSLUCENT", "'{}' uses translucency (high GPU cost).".format(name), "Medium")
+                        self._warn("MAT_TRANSLUCENT", "'{}': translucent blend mode; review its use in the scene.".format(name), "Low")
 
                     self.report["materials"].append({
                         "name": name,
-                        "blend_mode": str(blend),
+                        "blend_mode": str(blend) if blend is not None else None,
                         "path": str(ad.package_name)
                     })
-                except Exception:
+                except Exception as exc:
+                    self._unavailable(str(ad.asset_name), "asset inspection", exc)
                     continue
 
     def audit_lights(self):
@@ -247,6 +254,7 @@ class UEAssetAuditorDB:
             task.make_dialog(True)
             for actor in actors:
                 if task.should_cancel():
+                    self.report["partial"] = True
                     break
                 task.enter_progress_frame(1, actor.get_name())
                 try:
@@ -256,7 +264,8 @@ class UEAssetAuditorDB:
                             "name": actor.get_name(),
                             "type": actor.get_class().get_name()
                         })
-                except Exception:
+                except Exception as exc:
+                    self._unavailable(actor.get_name(), "actor inspection", exc)
                     continue
 
         self.report["summary"]["lights"] = count
@@ -273,30 +282,28 @@ class UEAssetAuditorDB:
             task.make_dialog(True)
             for ad in assets:
                 if task.should_cancel():
+                    self.report["partial"] = True
                     break
                 task.enter_progress_frame(1, str(ad.asset_name))
                 try:
                     sound = ad.get_asset()
                     if sound is None:
+                        self._unavailable(str(ad.asset_name), "asset loading", "Asset could not be loaded")
                         continue
                     name = str(ad.asset_name)
 
-                    inline = False
-                    try:
-                        # Check if loading behavior forces it into RAM instead of streaming
-                        loading = sound.get_editor_property("loading_behavior")
-                        if str(loading) == "SoundWaveLoadingBehavior.FORCE_INLINE":
-                            inline = True
-                            self._warn("AUDIO_INLINE", "'{}' is forced inline (loads into RAM). Consider Streaming.".format(name), "Medium")
-                    except Exception:
-                        pass
+                    loading = self._read(name, "loading behavior", lambda: sound.get_editor_property("loading_behavior"))
+                    inline = (loading == unreal.SoundWaveLoadingBehavior.FORCE_INLINE) if loading is not None else None
+                    if inline:
+                        self._warn("AUDIO_INLINE", "'{}': Force Inline is configured; review audio loading needs.".format(name))
 
                     self.report["audio"].append({
                         "name": name,
                         "inline": inline,
                         "path": str(ad.package_name)
                     })
-                except Exception:
+                except Exception as exc:
+                    self._unavailable(str(ad.asset_name), "asset inspection", exc)
                     continue
 
     def audit_blueprints(self):
@@ -311,12 +318,13 @@ class UEAssetAuditorDB:
             task.make_dialog(True)
             for ad in assets:
                 if task.should_cancel():
+                    self.report["partial"] = True
                     break
                 task.enter_progress_frame(1, str(ad.asset_name))
                 
                 # Note: Deep compilation check via Python is skipped here as it requires 
                 # forcing a recompile of all BPs which can freeze the editor or alter states.
-                # We just gather them and let the Orphan audit catch unused ones.
+                # This module only inventories Blueprint assets.
                 self.report["blueprints"].append({
                     "name": str(ad.asset_name),
                     "path": str(ad.package_name)
@@ -334,6 +342,7 @@ class UEAssetAuditorDB:
             task.make_dialog(True)
             for ad in assets:
                 if task.should_cancel():
+                    self.report["partial"] = True
                     break
                 task.enter_progress_frame(1, str(ad.asset_name))
                 self.report["sequencers"].append({
@@ -342,8 +351,8 @@ class UEAssetAuditorDB:
                 })
 
     def audit_orphans(self):
-        """Find project assets with zero referencers."""
-        unreal.log("Auditor: Scanning for orphan assets...")
+        """List assets with no detected package referencers; not a deletion recommendation."""
+        unreal.log("Auditor: Checking registered package referencers...")
         ar_filter = unreal.ARFilter(
             package_paths=["/Game"],
             recursive_paths=True
@@ -360,17 +369,19 @@ class UEAssetAuditorDB:
             include_soft_management_references=False
         )
 
-        with unreal.ScopedSlowTask(total, "Scanning for orphan assets...") as task:
+        with unreal.ScopedSlowTask(total, "Checking package referencers...") as task:
             task.make_dialog(True)
             for ad in assets:
                 if task.should_cancel():
+                    self.report["partial"] = True
                     break
                 task.enter_progress_frame(1, str(ad.asset_name))
                 try:
                     refs = self.asset_reg.get_referencers(str(ad.package_name), dep_opts)
                     if len(refs) == 0:
-                        self._warn("ORPHAN", "'{}' has no references.".format(ad.asset_name), "Low")
-                except Exception:
+                        self._warn("ORPHAN", "'{}': no hard/soft package referencers detected; this does not prove the asset is unused.".format(ad.asset_name), "Low")
+                except Exception as exc:
+                    self._unavailable(str(ad.asset_name), "asset inspection", exc)
                     continue
 
     def audit_environment(self):
@@ -384,11 +395,8 @@ class UEAssetAuditorDB:
 
                 if class_name == "PostProcessVolume":
                     # Check if unbounded (affects entire level)
-                    unbounded = False
-                    try:
-                        unbounded = actor.get_editor_property("unbound")
-                    except Exception:
-                        pass
+                    unbounded = self._read(actor.get_name(), "unbounded setting",
+                                           lambda: actor.get_editor_property("unbound"))
                     self.report["environment"].append({
                         "name": actor.get_name(),
                         "type": "PostProcessVolume",
@@ -396,22 +404,18 @@ class UEAssetAuditorDB:
                     })
 
                 elif class_name == "ExponentialHeightFog":
-                    vol_fog = False
-                    try:
-                        fog_comp = actor.get_editor_property("component")
-                        if fog_comp:
-                            vol_fog = fog_comp.get_editor_property("volumetric_fog")
-                    except Exception:
-                        pass
+                    vol_fog = self._read(actor.get_name(), "volumetric fog setting",
+                                         lambda: actor.get_editor_property("component").get_editor_property("volumetric_fog"))
                     self.report["environment"].append({
                         "name": actor.get_name(),
                         "type": "ExponentialHeightFog",
                         "volumetric_fog": vol_fog
                     })
                     if vol_fog:
-                        self._warn("FOG_VOLUMETRIC", "'{}' has Volumetric Fog enabled (high GPU cost).".format(actor.get_name()), "Medium")
+                        self._warn("FOG_VOLUMETRIC", "'{}': Volumetric Fog is enabled; runtime cost not measured.".format(actor.get_name()), "Low")
 
-            except Exception:
+            except Exception as exc:
+                self._unavailable(actor.get_name(), "actor inspection", exc)
                 continue
 
     # ------------------------------------------------------------------
@@ -419,6 +423,9 @@ class UEAssetAuditorDB:
     # ------------------------------------------------------------------
 
     def save(self):
+        # Counts describe recorded entries, including after a cancelled/partial scan.
+        for category in ("meshes", "textures", "materials", "lights", "audio", "blueprints", "sequencers"):
+            self.report["summary"][category] = len(self.report[category])
         base = "Audit_{}_{}".format(self.scene_name, self.version)
         json_path = os.path.join(self.reports_dir, base + ".json")
         html_path = os.path.join(self.reports_dir, base + ".html")
@@ -451,8 +458,8 @@ class UEAssetAuditorDB:
         # Confirmation popup
         try:
             unreal.EditorDialog.show_message(
-                "Audit Complete",
-                "Report saved to:\n{}\n\nDashboard:\n{}\n\nWarnings: {}".format(
+                "Asset Inventory",
+                "Report output:\n{}\n\nDashboard:\n{}\n\nReview notes: {}".format(
                     json_path, html_path, self.report["summary"]["warnings"]
                 ),
                 unreal.AppMsgType.OK

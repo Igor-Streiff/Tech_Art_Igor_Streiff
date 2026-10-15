@@ -85,10 +85,12 @@ tr.selected td{background:#1a2440;border-bottom-color:#1e3050}
 <div class="header">
   <div class="header-left">
     <h1>Asset Audit Dashboard <span>{{SCENE}} · {{VERSION}} · {{TIMESTAMP}}</span></h1>
-    <p>Technical performance report — generated automatically</p>
+    <p>Asset inventory and basic configuration review — generated automatically</p>
   </div>
   <div class="header-right">By Igor G. Streiff</div>
 </div>
+
+<p style="padding:16px 40px 0;color:#9ca3af;font-size:13px">Scope: /Game assets and actors currently loaded in the editor. Notes are review prompts, not measured performance faults. N/A means a property was unavailable. <strong id="scan-status"></strong></p>
 
 <div class="cards">
   <div class="card"><div class="label">Meshes</div><div class="value" id="c-mesh">0</div></div>
@@ -97,34 +99,30 @@ tr.selected td{background:#1a2440;border-bottom-color:#1e3050}
   <div class="card"><div class="label">Lights</div><div class="value" id="c-light">0</div></div>
   <div class="card"><div class="label">Audio</div><div class="value" id="c-audio">0</div></div>
   <div class="card"><div class="label">Blueprints</div><div class="value" id="c-bp">0</div></div>
-  <div class="card warn"><div class="label">Warnings</div><div class="value" id="c-warn">0</div></div>
+  <div class="card"><div class="label">Review notes</div><div class="value" id="c-warn">0</div></div>
 </div>
 
 <div class="controls">
   <div class="filter-group">
     <input type="text" class="search" id="search" placeholder="Search by name, tag or path...">
-    <button class="btn" onclick="togglePrio('High')" id="f-high">● High</button>
-    <button class="btn" onclick="togglePrio('Medium')" id="f-med">● Medium</button>
-    <button class="btn" onclick="togglePrio('Low')" id="f-low">● Low</button>
-    <span class="sep">|</span>
   </div>
   <div class="filter-group">
     <button class="btn" onclick="toggleTag('MESH_LOD')" id="f-mesh_lod">MESH_LOD</button>
     <button class="btn" onclick="toggleTag('MESH_SLOTS')" id="f-mesh_slots">MESH_SLOTS</button>
     <button class="btn" onclick="toggleTag('MESH_HEAVY')" id="f-mesh_heavy">MESH_HEAVY</button>
-    <button class="btn" onclick="toggleTag('MESH_NGON')" id="f-mesh_ngon">MESH_NGON</button>
     <button class="btn" onclick="toggleTag('MESH_COLLISION')" id="f-mesh_collision">MESH_COLLISION</button>
     <button class="btn" onclick="toggleTag('TEX_LARGE')" id="f-tex_large">TEX_LARGE</button>
     <button class="btn" onclick="toggleTag('MAT_TRANSLUCENT')" id="f-mat_translucent">MAT_TRANSLUCENT</button>
     <button class="btn" onclick="toggleTag('FOG_VOLUMETRIC')" id="f-fog_volumetric">FOG_VOLUMETRIC</button>
     <button class="btn" onclick="toggleTag('AUDIO_INLINE')" id="f-audio_inline">AUDIO_INLINE</button>
-    <button class="btn" onclick="toggleTag('ORPHAN')" id="f-orphan">ORPHAN</button>
+    <button class="btn" onclick="toggleTag('ORPHAN')" id="f-orphan">NO REFERENCERS</button>
+    <button class="btn" onclick="toggleTag('READ_ERROR')" id="f-read_error">UNAVAILABLE</button>
   </div>
   <div class="count" style="margin-left:auto; align-self:center;" id="row-count"></div>
 </div>
 
 <div class="tabs">
-  <div class="tab active" onclick="switchTab('warnings')">Warnings</div>
+  <div class="tab active" onclick="switchTab('warnings')">Review notes</div>
   <div class="tab" onclick="switchTab('meshes')">Meshes</div>
   <div class="tab" onclick="switchTab('textures')">Textures</div>
   <div class="tab" onclick="switchTab('materials')">Materials</div>
@@ -156,9 +154,16 @@ tr.selected td{background:#1a2440;border-bottom-color:#1e3050}
 
 <script>
 const DATA = {{JSON_DATA}};
+document.getElementById('scan-status').textContent = DATA.partial
+  ? 'Partial report: a scan was cancelled or some data could not be read.' : '';
+function displayValue(v){
+  if(v===null||v===undefined)return '<span class="path">N/A</span>';
+  if(typeof v==='boolean')return '<span class="tag-cell">'+(v?'YES':'NO')+'</span>';
+  if(typeof v==='number')return v.toLocaleString();
+  return String(v);
+}
 let currentTab = 'warnings';
 let sortCol = null, sortAsc = true;
-let prioFilters = new Set();
 let tagFilters = new Set();
 let filteredRows = [];
 
@@ -172,7 +177,6 @@ document.getElementById('c-warn').textContent = DATA.summary.warnings || 0;
 
 const COLUMNS = {
   warnings: [
-    {key:'priority',label:'Priority'},
     {key:'tag',label:'Type'},
     {key:'msg',label:'Description'}
   ],
@@ -182,7 +186,6 @@ const COLUMNS = {
     {key:'triangles',label:'Triangles'},
     {key:'lods',label:'LODs'},
     {key:'nanite',label:'Nanite'},
-    {key:'ngon_risk',label:'Ngon Risk'},
     {key:'complex_collision',label:'Complex Collision'},
     {key:'material_slots',label:'Mat Slots'},
     {key:'path',label:'Path'}
@@ -228,15 +231,6 @@ function switchTab(tab){
   render();
 }
 
-function togglePrio(p){
-  prioFilters.has(p)?prioFilters.delete(p):prioFilters.add(p);
-  let id=p==='High'?'f-high':p==='Medium'?'f-med':'f-low';
-  let cls=p==='High'?'on-high':p==='Medium'?'on-med':'on-low';
-  let el=document.getElementById(id);
-  el.classList.toggle(cls);
-  render();
-}
-
 function toggleTag(t){
   tagFilters.has(t)?tagFilters.delete(t):tagFilters.add(t);
   let el=document.getElementById('f-'+t.toLowerCase());
@@ -252,7 +246,6 @@ function render(){
   rows=rows.filter(r=>{
     if(q){let s=JSON.stringify(r).toLowerCase();if(!s.includes(q))return false;}
     if(currentTab==='warnings'){
-      if(prioFilters.size>0&&!prioFilters.has(r.priority))return false;
       if(tagFilters.size>0&&!tagFilters.has(r.tag))return false;
     }
     return true;
@@ -290,14 +283,8 @@ function render(){
         tb+='<td><span class="tag-cell">'+v+'</span></td>';
       } else if(c.key==='path'){
         tb+='<td><span class="path">'+v+'</span></td>';
-      } else if(c.key==='nanite'||c.key==='ngon_risk'||c.key==='unbounded'||c.key==='volumetric_fog'||c.key==='complex_collision'||c.key==='inline'){
-        let good=c.key==='nanite';
-        if(v===undefined||v===null){tb+='<td>—</td>';
-        }else{tb+='<td>'+(v?'<span class="badge '+(good?'low':'high')+'">YES</span>':'<span class="badge '+(good?'high':'low')+'">NO</span>')+'</td>';}
-      } else if(typeof v==='number'){
-        tb+='<td>'+v.toLocaleString()+'</td>';
       } else {
-        tb+='<td>'+v+'</td>';
+        tb+='<td>'+displayValue(v)+'</td>';
       }
     });
     tb+='</tr>';
@@ -331,14 +318,8 @@ function selectRow(idx){
   for(let k in row){
     let v=row[k];
     let label=k.charAt(0).toUpperCase()+k.slice(1).replace(/_/g,' ');
-    if(k==='priority'){
-      let cls=v==='High'?'high':v==='Medium'?'med':'low';
-      body+='<div class="detail-row"><span class="dk">'+label+'</span><span class="dv"><span class="badge '+cls+'">'+v+'</span></span></div>';
-    } else if(k==='nanite'){
-      body+='<div class="detail-row"><span class="dk">'+label+'</span><span class="dv">'+(v?'<span class="badge low">ON</span>':'<span class="badge high">OFF</span>')+'</span></div>';
-    } else {
-      body+='<div class="detail-row"><span class="dk">'+label+'</span><span class="dv">'+v+'</span></div>';
-    }
+    if(k==='priority')continue;
+    body+='<div class="detail-row"><span class="dk">'+label+'</span><span class="dv">'+displayValue(v)+'</span></div>';
   }
   document.getElementById('detail-body').innerHTML=body;
 
@@ -365,11 +346,7 @@ function selectRow(idx){
         for(let k in found){
           let v=found[k];
           let label=k.charAt(0).toUpperCase()+k.slice(1).replace(/_/g,' ');
-          if(k==='nanite'){
-            rb+='<div class="detail-row"><span class="dk">'+label+'</span><span class="dv">'+(v?'<span class="badge low">ON</span>':'<span class="badge high">OFF</span>')+'</span></div>';
-          } else {
-            rb+='<div class="detail-row"><span class="dk">'+label+'</span><span class="dv">'+v+'</span></div>';
-          }
+          rb+='<div class="detail-row"><span class="dk">'+label+'</span><span class="dv">'+displayValue(v)+'</span></div>';
         }
         relBody.innerHTML=rb;
       }

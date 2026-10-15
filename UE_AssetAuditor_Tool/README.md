@@ -1,143 +1,131 @@
 <a id="english"></a>
-# UE Asset Auditor Tool
+# UE Asset Auditor
 
-![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.6%2B-white?logo=unrealengine&logoColor=white&color=0E1128)
-![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python&logoColor=white)
+**Asset inventory and basic review for Unreal Engine.**
 
 *[Español abajo](#español)*
 
-Automated technical audit tool for **Unreal Engine 5.6+**, designed for quality control, memory optimization, and asset management in large-scale projects.
-
 <div align="center">
-  <img src="UE_AssetAuditor_banner.png" alt="UE Asset Auditor Banner" width="100%">
+  <img src="UE_AssetAuditor_banner.png" alt="UE Asset Auditor" width="100%">
 </div>
 
-## 🎥 Demo
+A Python automation exercise developed during the Tech Art course. It gathers asset information and selected level settings, applies simple review rules, and exports a searchable HTML dashboard and JSON report. Its purpose is to make an initial inspection easier to share and review outside the editor.
+
+## Demo
+
 https://github.com/user-attachments/assets/c9fad7df-e1e5-41ee-956e-0126d166bbda
 
-## 🚀 Features
+The recording shows the original exercise. The current report presents flags as review notes and displays unavailable properties as **N/A**.
 
-### Asset Auditing
-- **Mesh Topology Audit**: Vertex count, triangle count, LODs, Nanite status, material slot count, and heuristic ngon detection.
-- **Texture Memory Control**: Detects textures exceeding optimal resolution thresholds (default >2048px).
-- **Material Analysis**: Identifies translucent materials that carry a high GPU cost.
-- **Orphan Detection**: Finds assets with zero references that waste disk space.
-- **Sequencer Inventory**: Lists all `LevelSequence` assets in the project.
+## What It Collects
 
-### Level Actor Auditing
-- **Light Audit**: Counts and catalogs all light actors in the current level.
-- **PostProcess Audit**: Detects `PostProcessVolume` actors and flags volumetric features.
-- **Fog Audit**: Detects `ExponentialHeightFog` actors and warns if Volumetric Fog is enabled.
+- **Static meshes:** LOD 0 vertices and triangles, LOD count, Nanite setting, material slots, and collision configuration.
+- **Texture2D assets:** dimensions in pixels.
+- **Material assets:** blend mode. Material instances are outside this scan.
+- **SoundWave assets:** explicit loading behavior, when readable.
+- **Blueprints and Level Sequences:** names and package paths; inventory only.
+- **Loaded level actors:** lights, PostProcessVolume unbounded setting, and ExponentialHeightFog volumetric-fog setting.
+- **Package references:** assets with no detected hard/soft package referencers.
 
-### Warnings & Diagnostics
-| Tag | Trigger | Priority |
-|-----|---------|----------|
-| `MESH_LOD` | No Nanite + fewer than 3 LODs | High |
-| `MESH_HEAVY` | More than 100,000 triangles | High |
-| `MESH_SLOTS` | More than 5 material slots | Medium |
-| `MESH_NGON` | Suspicious tri/vert ratio (possible ngons in source) | Low |
-| `MESH_COLLISION` | Uses Complex Collision as Simple (high CPU cost) | High |
-| `TEX_LARGE` | Resolution exceeds threshold | Medium |
-| `MAT_TRANSLUCENT` | Material uses translucent blend mode | Medium |
-| `FOG_VOLUMETRIC` | Volumetric Fog is enabled (high GPU cost) | Medium |
-| `AUDIO_INLINE` | Audio forced to load into RAM instead of streaming | Medium |
-| `ORPHAN` | Asset has zero references | Low |
+Assets are scanned under **`/Game`**; Engine and plugin content are outside that scope. Actor information covers what is currently loaded in the editor, not every map or unloaded World Partition cell.
 
-### Output
-- **JSON Report**: Versioned (`Audit_ProjectName_v00.json`) with full metadata.
-- **HTML Dashboard**: Interactive report with search, filters, sortable columns, and detail panel with asset cross-referencing.
-- **Dynamic Versioning**: Incremental version per project (`v00`, `v01`, `v02`...).
+## Review Rules
 
-## 🛠️ Requirements
-1. **Unreal Engine 5.6.1** or later.
-2. **Python Editor Script Plugin** enabled (`Edit > Plugins`). Enabled by default in UE 5.6+.
+These are prompts for a person to investigate, not measured performance faults or universal production limits.
 
-## 📖 Usage
-### Available Scripts
-| Script | Output |
-|--------|--------|
-| `asset_auditor.py` | JSON report + HTML Dashboard |
+| Tag | Recorded condition |
+|-----|--------------------|
+| `MESH_LOD` | Nanite off and fewer than 3 LODs |
+| `MESH_HEAVY` | More than 100,000 LOD 0 triangles |
+| `MESH_SLOTS` | More than 5 material slots |
+| `MESH_COLLISION` | Complex Collision as Simple configured |
+| `TEX_LARGE` | A dimension exceeds 2048 px |
+| `MAT_TRANSLUCENT` | Translucent blend mode |
+| `FOG_VOLUMETRIC` | Volumetric Fog enabled |
+| `AUDIO_INLINE` | Force Inline explicitly configured |
+| `ORPHAN` | No package referencers detected by this check; **not proof that the asset is unused** |
+| `READ_ERROR` | A property or asset could not be inspected; consult the Unreal log |
 
-### How to Run (In-Editor)
-1. Open your project in Unreal Engine.
-2. Go to **Tools > Execute Python Script...**
-3. Navigate to `Scripts/` and select the desired script.
-4. Reports are saved to the `Reports/` folder.
+Thresholds are defaults in the Python methods, not recommended budgets for every asset or platform. No detected referencers is not a deletion recommendation: entry maps, code/configuration loads, and Asset Manager rules require separate review.
 
-## 👨‍💻 Author
-By **Igor G. Streiff**
+**Scope:** this report does not measure frame time, CPU/GPU cost, RAM/VRAM residency, texture streaming pressure, or real-time readiness. Performance diagnosis requires measurements during execution with Unreal's profiling tools. Source ngon topology is not inferred from triangle/vertex counts.
 
-## ⚖️ License
-This project is under the MIT License.
+Failed property reads are stored as JSON `null` and shown as **N/A**, keeping them distinct from measured zero and false values. Cancelled scans or unreadable data mark the report **partial**; counts describe the entries actually recorded. Level Sequences are included in JSON; the dashboard shows its existing asset and actor tabs.
 
----
+## Run in Unreal Editor
+
+1. Enable **Python Editor Script Plugin** in your project if needed. The script targets Unreal Engine **5.6.1** and its editor Python API; other versions may require adjustments.
+2. Keep [`asset_auditor.py`](Scripts/asset_auditor.py) and [`dashboard_template.html`](Scripts/dashboard_template.html) together in `Scripts/`.
+3. Open the level you want to inspect and choose **Tools → Execute Python Script…**, then select `asset_auditor.py`.
+4. Open the generated HTML or JSON under the tool's `Reports/` folder. Files use incremental names such as `Audit_ProjectName_v00.json`.
+
+The script loads asset objects during inspection; scanning a large content folder can take time and temporarily increase editor memory use. It does not modify asset settings.
+
+By **Igor G. Streiff**, developed for the Max Sarlija Academy Tech Art course. [MIT License](LICENSE).
+
 ---
 
 <a id="español"></a>
-# UE Asset Auditor Tool (Español)
+# UE Asset Auditor
+
+**Inventario y revisión básica de assets para Unreal Engine.**
 
 *[English above](#english)*
 
-Herramienta de auditoría técnica automatizada para **Unreal Engine 5.6+**, diseñada para control de calidad, optimización de memoria y gestión de assets en proyectos a gran escala.
-
 <div align="center">
-  <img src="UE_AssetAuditor_banner.png" alt="UE Asset Auditor Banner" width="100%">
+  <img src="UE_AssetAuditor_banner.png" alt="UE Asset Auditor" width="100%">
 </div>
 
-## 🎥 Demostración
+Ejercicio de automatización en Python desarrollado durante el curso de Tech Art. Recopila información de assets y ciertas configuraciones del nivel, aplica reglas simples de revisión y exporta un dashboard HTML con buscador y un reporte JSON. Su propósito es facilitar una inspección inicial que se pueda compartir y revisar fuera del editor.
+
+## Demostración
+
 https://github.com/user-attachments/assets/c9fad7df-e1e5-41ee-956e-0126d166bbda
 
-## 🚀 Características
+La grabación muestra el ejercicio original. El reporte actual presenta las alertas como observaciones para revisar y muestra **N/A** cuando una propiedad no está disponible.
 
-### Auditoría de Assets
-- **Topología de Mallas**: Conteo de vértices, triángulos, LODs, estado de Nanite, ranuras de material y detección heurística de ngons.
-- **Control de Texturas**: Detecta texturas que exceden la resolución óptima (por defecto >2048px).
-- **Análisis de Materiales**: Identifica materiales translúcidos con alto costo de GPU.
-- **Detección de Huérfanos**: Encuentra assets con cero referencias que ocupan espacio en disco.
-- **Inventario de Secuencias**: Lista todos los assets `LevelSequence` en el proyecto.
+## Qué Recopila
 
-### Auditoría de Actores de Nivel
-- **Auditoría de Luces**: Cuenta y cataloga todas las luces en el nivel actual.
-- **Post-Procesado**: Detecta actores `PostProcessVolume` e identifica características volumétricas.
-- **Niebla**: Detecta actores `ExponentialHeightFog` y advierte si la Niebla Volumétrica está activada.
+- **Static meshes:** vértices y triángulos de LOD 0, cantidad de LODs, estado de Nanite, slots de material y configuración de colisión.
+- **Assets Texture2D:** dimensiones en píxeles.
+- **Assets Material:** modo de mezcla. Las instancias de material quedan fuera de este escaneo.
+- **Assets SoundWave:** configuración explícita de carga, cuando puede leerse.
+- **Blueprints y Level Sequences:** nombres y rutas de paquete; solo inventario.
+- **Actores cargados del nivel:** luces, estado unbounded de PostProcessVolume y configuración de niebla volumétrica de ExponentialHeightFog.
+- **Referencias de paquetes:** assets sin referencias entrantes hard/soft detectadas por esta consulta.
 
-### Advertencias y Diagnósticos
-| Tag | Condición | Prioridad |
-|-----|-----------|-----------|
-| `MESH_LOD` | Sin Nanite + menos de 3 LODs | Alta |
-| `MESH_HEAVY` | Más de 100,000 triángulos | Alta |
-| `MESH_SLOTS` | Más de 5 ranuras de material | Media |
-| `MESH_NGON` | Proporción tris/verts sospechosa (posibles ngons en origen) | Baja |
-| `MESH_COLLISION` | Usa Colisión Compleja como Simple (alto costo de CPU) | Alta |
-| `TEX_LARGE` | La resolución excede el umbral | Media |
-| `MAT_TRANSLUCENT` | Material usa modo de mezcla translúcido | Media |
-| `FOG_VOLUMETRIC` | Niebla volumétrica activada (alto costo GPU) | Media |
-| `AUDIO_INLINE` | Audio forzado a cargar en RAM en lugar de Streaming | Media |
-| `ORPHAN` | Asset no tiene referencias | Baja |
+Los assets se buscan dentro de **`/Game`**; el contenido del motor y los plugins queda fuera del alcance. La información de actores corresponde a lo cargado en el editor, no a todos los mapas ni a celdas descargadas de World Partition.
 
-### Salida
-- **Reporte JSON**: Versionado (`Audit_ProjectName_v00.json`) con metadatos completos.
-- **Dashboard HTML**: Reporte interactivo con buscador, filtros, columnas ordenables y panel de detalles.
-- **Versionado Dinámico**: Incremento automático por proyecto (`v00`, `v01`, `v02`...).
+## Reglas de Revisión
 
-## 🛠️ Requisitos
-1. **Unreal Engine 5.6.1** o superior.
-2. **Python Editor Script Plugin** activado (`Edit > Plugins`). Activado por defecto en UE 5.6+.
+Son indicaciones para investigar, no fallos de rendimiento medidos ni límites universales de producción.
 
-## 📖 Uso
-### Scripts Disponibles
-| Script | Salida |
-|--------|--------|
-| `asset_auditor.py` | Reporte JSON + Dashboard HTML |
+| Tag | Condición registrada |
+|-----|----------------------|
+| `MESH_LOD` | Nanite desactivado y menos de 3 LODs |
+| `MESH_HEAVY` | Más de 100.000 triángulos en LOD 0 |
+| `MESH_SLOTS` | Más de 5 slots de material |
+| `MESH_COLLISION` | Complex Collision as Simple configurado |
+| `TEX_LARGE` | Alguna dimensión supera los 2048 px |
+| `MAT_TRANSLUCENT` | Modo de mezcla translúcido |
+| `FOG_VOLUMETRIC` | Niebla volumétrica activada |
+| `AUDIO_INLINE` | Force Inline configurado explícitamente |
+| `ORPHAN` | Sin referencias entrantes de paquetes detectadas; **no demuestra que el asset esté sin usar** |
+| `READ_ERROR` | No se pudo inspeccionar una propiedad o asset; consultar el log de Unreal |
 
-### Cómo ejecutar (En el Editor)
-1. Abre tu proyecto en Unreal Engine.
-2. Ve a **Tools > Execute Python Script...**
-3. Navigate to `Scripts/` y selecciona el script deseado.
-4. Los reportes se guardan en la carpeta `Reports/`.
+Los umbrales son valores predeterminados de los métodos Python, no presupuestos recomendados para cualquier asset o plataforma. La ausencia de referencias detectadas no recomienda borrar: mapas de entrada, cargas desde código/configuración y reglas del Asset Manager requieren una revisión aparte.
 
-## 👨‍💻 Autor
-Por **Igor G. Streiff**
+**Alcance:** este reporte no mide tiempo por cuadro, costo de CPU/GPU, memoria RAM/VRAM residente, presión de streaming ni capacidad de sostener tiempo real. El diagnóstico de rendimiento requiere mediciones durante la ejecución con las herramientas de profiling de Unreal. No se infiere la topología original de ngons a partir de conteos de triángulos/vértices.
 
-## ⚖️ Licencia
-Este proyecto está bajo la Licencia MIT.
+Las lecturas fallidas se guardan como `null` en JSON y se muestran como **N/A**, distinguiéndolas de valores cero o falso comprobados. Si se cancela un escaneo o faltan datos, el reporte se marca **parcial**; los contadores corresponden a las entradas efectivamente registradas. Las Level Sequences figuran en JSON; el dashboard conserva sus pestañas existentes de assets y actores.
+
+## Ejecutar en Unreal Editor
+
+1. Activá **Python Editor Script Plugin** en el proyecto si hace falta. El script está orientado a Unreal Engine **5.6.1** y su API Python del editor; otras versiones pueden requerir ajustes.
+2. Conservá juntos [`asset_auditor.py`](Scripts/asset_auditor.py) y [`dashboard_template.html`](Scripts/dashboard_template.html) dentro de `Scripts/`.
+3. Abrí el nivel que querés inspeccionar y elegí **Tools → Execute Python Script…**. Seleccioná `asset_auditor.py`.
+4. Abrí el HTML o JSON generado dentro de `Reports/` de la herramienta. Los nombres se incrementan, por ejemplo `Audit_ProjectName_v00.json`.
+
+El script carga objetos de los assets durante la inspección; escanear mucho contenido puede tardar y aumentar temporalmente la memoria usada por el editor. No modifica configuraciones de los assets.
+
+Por **Igor G. Streiff**, desarrollado para el curso de Tech Art de Max Sarlija Academy. [Licencia MIT](LICENSE).
