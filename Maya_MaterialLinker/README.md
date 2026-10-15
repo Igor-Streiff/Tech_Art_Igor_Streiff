@@ -9,125 +9,84 @@
 
 ![MatLink: connect Substance PBR texture maps to Maya Arnold materials](assets/Banner_MaterialLinker.png)
 
-A Python prototype that connects Substance Painter PBR exports to existing Arnold `aiStandardSurface` materials in Maya. It matches texture filenames to materials, supports explicit aliases when their names differ, and reports what was linked or skipped.
+A Python tool with a small Maya window for connecting PBR texture exports to existing Arnold `aiStandardSurface` materials. Choose a folder, match texture sets to materials, preview the changes, and connect. Normal use does not require editing JSON or Python code.
 
 ## Demo
 
-### Running Material Linker
+![Material Linker in use: matching texture sets, Preview, and Connect textures](assets/demo_MaterialLinker_ui.gif)
 
-![Material Linker executed in Maya's Script Editor, with the cursor and generated report](assets/demo_MaterialLinker_execution_v2.gif)
+Real Maya recording using the Rusty course asset's texture exports: **three materials, 12 texture maps connected**. Preview leaves the scene unchanged; Connect applies the links and displays the result.
 
-Live recording after loading the script and reviewing the dry-run: click **Execute** to run `run_linker.run(config_path, dry_run=False)`. The script connects the textures and prints the report in the Script Editor.
+## Install and Open
 
-### Generated Material Connections
+1. Download or clone this repository. Keep the complete **`Maya_MaterialLinker/`** folder together.
+2. Open Maya and drag **[`open_material_linker.py`](open_material_linker.py)** from that folder into the viewport. The Material Linker window opens.
 
-![Before and after: texture maps connected automatically to an Arnold material](assets/demo_MaterialLinker.gif)
+![Keep the tool folder together and drag open_material_linker.py into Maya](assets/install_gui_en.png)
 
-Real Maya Node Editor captures from a verification scene using the original Rusty texture exports. **18 maps found, 12 maps connected across three materials**, with Height and Emissive excluded by configuration. Running the linker again recognized all 12 existing links and created no additional nodes.
+Alternative: in the **Script Editor**, choose **File → Open Script**, open `open_material_linker.py`, and execute it in a **Python** tab. If asked for the tool folder, select `Maya_MaterialLinker/`.
 
-The graph shows one material's BaseColor, Roughness, Metalness, and Normal connections. Normal uses an `aiNormalMap` node.
+## Use
 
-## Features
+1. Open a scene containing the Arnold materials you want to texture.
+2. Click **Browse…** and choose the folder containing your exported maps. The active project's `sourceimages/` is scanned automatically when available; you can choose another folder without changing the Maya project.
+3. Select the **Asset prefix** if the folder contains several assets. For each material, choose its texture set from the list, or **Skip this material**. Matching names are selected automatically; different names can be paired manually in the same window.
+4. Click **Preview** and review the planned links. Resolve missing maps or materials shown in the report.
+5. Click **Connect textures**. Maya **Undo** reverses the operation as one step. Use **Scan / Refresh** after adding materials or changing the texture files.
 
-- Texture naming: `{prefix}_M_{token}_{map}.ext`.
-- JSON mappings between material names and texture tokens.
-- Automatic matching for materials named `M_{token}`.
-- Dry-run preview and a structured report.
-- BaseColor, Roughness, Metalness, Normal, Emissive, and optional Height bindings.
-- Color-space setup: sRGB for color maps, Raw for data maps.
-- Existing-link detection and an undo chunk around the operation.
+![The Material Linker window with texture-set selectors and a connection preview](assets/ui_preview.png)
 
-## Install and Load
+## Texture Naming and Connections
 
-Download or clone this repository, then open the `Maya_MaterialLinker/` folder.
+Export filenames as **`{prefix}_M_{textureSet}_{map}.ext`**, for example:
 
-1. Copy [`scripts/material_linker/`](scripts/material_linker/) into your Maya project's `scripts/` folder.
-2. Copy [`material_link_map.json`](material_link_map.json) into the project root and edit its prefix, material aliases, and ignored maps for your asset.
-3. Put your exported textures in the project's `sourceimages/` folder. Materials must already exist in the scene.
-
-![Where to copy the script folder, JSON configuration, and texture exports](assets/install_01_folders_v2.png)
-
-4. In Maya, use **File → Set Project** and select the **project root** containing `scripts/`, `sourceimages/`, and `material_link_map.json`. Open a copy of your scene. Arnold / MtoA must be loaded.
-
-![Maya Set Project dialog showing the example project folder](assets/install_02_set_project_v2.png)
-
-5. Open the **Script Editor**, choose **File → Open Script**, and select [`examples/load_in_maya.py`](examples/load_in_maya.py) from the downloaded tool. In the **Load Script** dialog, click **Open**.
-
-![Maya Load Script dialog showing load_in_maya.py](assets/install_03_open_script_v2.jpg)
-
-6. Execute the loaded script in its **Python** tab. It runs a **dry-run** first.
-
-![Maya Script Editor with the Material Linker loading example](assets/00_load_script_v2.png)
-
-Review the report, then apply from the same Python tab:
-
-```python
-report = run_linker.run(config_path, dry_run=False)
+```text
+Asset_Rusty2_M_Madera_Organico_BaseColor.tif
+Asset_Rusty2_M_Madera_Organico_Roughness.tif
+Asset_Rusty2_M_Madera_Organico_Metalness.tif
+Asset_Rusty2_M_Madera_Organico_Normal.tif
 ```
 
-The loading example uses your active Maya project to find the scripts and config. **Rusty_LookDev** is the asset project in these images; **Maya_MaterialLinker** is the downloaded tool folder.
+Supported extensions: `.tif`, `.tiff`, `.png`, `.exr`.
 
-## Configure Material Aliases
+| Map suffix | Arnold input | Color space |
+|------------|--------------|-------------|
+| `BaseColor` | `baseColor` | sRGB |
+| `Roughness` | `specularRoughness` | Raw |
+| `Metalness` | `metalness` | Raw |
+| `Normal` | `aiNormalMap` → `normalCamera` | Raw |
+| `Emissive` | `emissionColor` | sRGB; enable **Include Emissive maps** |
 
-When a texture token and a shader name differ, map them explicitly:
+The window skips Height maps. Materials must already exist in the scene. Already correct links are recognized, so repeating the operation does not duplicate their nodes.
 
-```json
-{
-  "texture_prefix": "Asset_Rusty2",
-  "sourceimages_subdir": "sourceimages",
-  "texture_extensions": [".tif", ".tiff", ".png", ".exr"],
-  "skip_maps": ["Emissive", "Height"],
-  "mappings": [
-    {"maya_material": "M_face_Arnold", "texture_token": "Madera_Organico"},
-    {"maya_material": "M_Cuerpo_Arnold", "texture_token": "Cuerpo_Desgastado"},
-    {"maya_material": "M_Detalles_Arnold", "texture_token": "Metal_Detalles"}
-  ]
-}
-```
+### Before / After
 
-For example, `Asset_Rusty2_M_Madera_Organico_BaseColor.tif` is connected to `M_face_Arnold.baseColor`.
+![Diagram of the same Arnold shader before and after connecting four texture maps](assets/connections_before_after.png)
 
-## Before / After
+This **connection diagram** shows the same `M_face_Arnold` material: before, these inputs have no texture connections; after, the four maps feed their corresponding inputs. Normal passes through an `aiNormalMap` node. The connections were verified in Maya; this diagram is an explanation of the network.
 
-![Arnold material before its texture connections](assets/01_before.png)
+## Requirements and Verification
 
-![The same material after automatic texture and normal-map connections](assets/02_after.png)
+- Maya with Arnold / MtoA and Python 3.10+; no additional Python packages.
+- Verified in **Maya 2027**: preview without scene changes, 12 connected maps across three materials, correct color spaces and normal-map nodes, repeated execution without duplicate nodes, and one-step Undo.
+- Manual material-to-texture matching works without editing JSON. Changing the selected texture folder leaves the active Maya project unchanged.
+
+<details>
+<summary>Advanced: JSON configuration and Python runners</summary>
+
+The original connection engine remains available in [`scripts/material_linker/`](scripts/material_linker/). [`material_link_map.json`](material_link_map.json) contains the Rusty preset and can also be used with `run_linker.run(config_path, dry_run=True)` before applying with `dry_run=False`.
+
+[`examples/load_in_maya.py`](examples/load_in_maya.py) documents the project-based Python workflow: scripts under the project's `scripts/`, the JSON config at its root, and textures in `sourceimages/`. That setup is optional when using the window.
+
+[`config_schema.json`](scripts/material_linker/config_schema.json) contains the naming and binding reference. [`validate_textures.py`](scripts/material_linker/validate_textures.py) checks exported filenames offline; it does not inspect scene connections.
+
+</details>
 
 ### Original Course Asset
 
 ![Rusty asset from the original Maya look-development exercise](assets/Rusty_reference.png)
 
-Rusty is the original course use case. This existing look-development capture provides asset context; the new Node Editor captures above document the script's automatic connections in a separate verification scene.
-
-## Requirements and Verification
-
-- Maya with Arnold / MtoA and Python 3.10+.
-- No third-party Python packages required.
-- Verified in **Maya 2027**: dry-run without node changes, 12 successful links, color spaces, normal-map connections, and a repeat run without new nodes.
-
-The prototype uses **JSON configuration and the Script Editor**.
-
-<details>
-<summary>Offline check and source files</summary>
-
-After copying the scripts and config into a project containing `sourceimages/`, run:
-
-```bash
-python scripts/material_linker/validate_textures.py
-```
-
-This scans filenames and reports available maps. It does not check Maya scene connections.
-
-| File | Purpose |
-|------|---------|
-| `core.py` | Texture matching, Arnold connections, and report |
-| `run_linker.py` | Generic runner with a JSON config path |
-| `run_rusty.py` | Runner for a project with config at its root |
-| `validate_textures.py` | Offline filename scan |
-| `config_schema.json` | Naming and binding reference |
-| `examples/load_in_maya.py` | Project-based loading example |
-
-</details>
+Rusty is the original course use case. This look-development image provides asset context; the window demo above documents the texture-linking operation.
 
 Developed by **Igor G. Streiff** for the Max Sarlija Academy Tech Art course. [MIT License](LICENSE).
 
@@ -138,107 +97,83 @@ Developed by **Igor G. Streiff** for the Max Sarlija Academy Tech Art course. [M
 
 ![MatLink: conexión de mapas PBR de Substance con materiales Arnold en Maya](assets/Banner_MaterialLinker.png)
 
-Prototipo Python que conecta mapas PBR exportados de Substance Painter con materiales Arnold `aiStandardSurface` existentes en Maya. Reconoce nombres de textura, permite definir aliases cuando el material y el token usan nombres distintos, y reporta qué conectó o dejó sin conectar.
+Tool Python con una pequeña ventana en Maya para conectar texturas PBR exportadas con materiales Arnold `aiStandardSurface` existentes. Elegí una carpeta, relacioná los conjuntos de texturas con los materiales, revisá los cambios y conectá. El uso normal no requiere editar JSON ni código Python.
 
 ## Demostración
 
-### Material Linker en Uso
+![Material Linker en uso: selección de conjuntos de texturas, Preview y Connect textures](assets/demo_MaterialLinker_ui.gif)
 
-![Ejecución real de Material Linker desde el Script Editor, con cursor y reporte](assets/demo_MaterialLinker_execution_v2.gif)
+Grabación real de Maya con las texturas del asset Rusty del curso: **tres materiales y 12 mapas conectados**. Preview mantiene la escena sin cambios; Connect aplica las conexiones y muestra el resultado.
 
-Grabación real después de cargar el script y revisar el dry-run: clic en **Execute** para ejecutar `run_linker.run(config_path, dry_run=False)`. El script conecta las texturas y muestra el reporte en el Script Editor.
+## Instalar y Abrir
 
-### Conexiones Generadas
+1. Descargá o cloná este repositorio. Conservá completa la carpeta **`Maya_MaterialLinker/`**.
+2. Abrí Maya y arrastrá **[`open_material_linker.py`](open_material_linker.py)** desde esa carpeta al viewport. Se abre la ventana de Material Linker.
 
-![Antes y después de conectar automáticamente los mapas de un material Arnold](assets/demo_MaterialLinker.gif)
+![Conservar la carpeta completa y arrastrar open_material_linker.py a Maya](assets/install_gui_es.png)
 
-Capturas reales del Node Editor de Maya en una escena de verificación, usando las texturas originales de Rusty. **18 mapas encontrados y 12 conexiones en tres materiales**, con Height y Emissive omitidos por configuración. La segunda ejecución reconoció las 12 conexiones existentes y no creó nodos adicionales.
+Alternativa: en el **Script Editor**, elegí **File → Open Script**, abrí `open_material_linker.py` y ejecutalo desde una pestaña **Python**. Si pide la carpeta de la tool, seleccioná `Maya_MaterialLinker/`.
 
-El grafo muestra BaseColor, Roughness, Metalness y Normal de un material. Normal pasa por un nodo `aiNormalMap`.
+## Uso
 
-## Funciones
+1. Abrí una escena con los materiales Arnold que querés texturizar.
+2. Presioná **Browse…** y elegí la carpeta de los mapas exportados. Si existe `sourceimages/` en el proyecto activo, se escanea automáticamente; podés elegir otra carpeta sin cambiar el proyecto de Maya.
+3. Seleccioná **Asset prefix** si hay varios assets en la carpeta. Para cada material, elegí su conjunto de texturas en la lista o **Skip this material** para omitirlo. Los nombres coincidentes se seleccionan automáticamente; los nombres diferentes se relacionan manualmente desde la misma ventana.
+4. Presioná **Preview** y revisá las conexiones previstas. Resolvé los mapas o materiales faltantes que indique el reporte.
+5. Presioná **Connect textures**. Un **Undo** de Maya revierte toda la operación. Usá **Scan / Refresh** si agregás materiales o cambiás los archivos de textura.
 
-- Convención de texturas: `{prefix}_M_{token}_{map}.ext`.
-- Mapeos JSON entre materiales y tokens de textura.
-- Coincidencia automática para materiales llamados `M_{token}`.
-- Dry-run y reporte estructurado.
-- Conexiones para BaseColor, Roughness, Metalness, Normal, Emissive y Height opcional.
-- Espacios de color: sRGB para mapas de color y Raw para datos.
-- Reconocimiento de conexiones existentes y operación agrupada para Undo.
+![Ventana de Material Linker con los selectores de texturas y una previsualización de conexiones](assets/ui_preview.png)
 
-## Instalar y Cargar
+## Nombres de Textura y Conexiones
 
-Descargá o cloná este repositorio y abrí la carpeta `Maya_MaterialLinker/`.
+Exportá los archivos con el formato **`{prefijo}_M_{conjunto}_{mapa}.ext`**, por ejemplo:
 
-1. Copiá [`scripts/material_linker/`](scripts/material_linker/) en `scripts/` de tu proyecto de Maya.
-2. Copiá [`material_link_map.json`](material_link_map.json) en la raíz del proyecto. Ajustá el prefijo, los aliases y los mapas omitidos para tu asset.
-3. Colocá las texturas exportadas en `sourceimages/`. Los materiales deben existir en la escena.
-
-![Dónde colocar la carpeta del script, la configuración JSON y las texturas exportadas](assets/install_01_folders_es_v2.png)
-
-4. En Maya, elegí **File → Set Project** y seleccioná la **raíz del proyecto** que contiene `scripts/`, `sourceimages/` y `material_link_map.json`. Abrí una copia de la escena. Arnold / MtoA debe estar cargado.
-
-![Selector Set Project de Maya con la carpeta del proyecto de ejemplo](assets/install_02_set_project_v2.png)
-
-5. Abrí el **Script Editor**, elegí **File → Open Script** y seleccioná [`examples/load_in_maya.py`](examples/load_in_maya.py) dentro de la tool descargada. En la ventana **Load Script**, presioná **Open**.
-
-![Selector Load Script de Maya con el archivo load_in_maya.py](assets/install_03_open_script_v2.jpg)
-
-6. Ejecutá el script desde su pestaña **Python**. Primero hace un **dry-run**.
-
-![Script Editor con el ejemplo de carga de Material Linker](assets/00_load_script_v2.png)
-
-Revisá el reporte y después aplicá desde la misma pestaña Python:
-
-```python
-report = run_linker.run(config_path, dry_run=False)
+```text
+Asset_Rusty2_M_Madera_Organico_BaseColor.tif
+Asset_Rusty2_M_Madera_Organico_Roughness.tif
+Asset_Rusty2_M_Madera_Organico_Metalness.tif
+Asset_Rusty2_M_Madera_Organico_Normal.tif
 ```
 
-El ejemplo usa tu proyecto activo de Maya para encontrar los scripts y la configuración. **Rusty_LookDev** es el proyecto del asset en estas imágenes; **Maya_MaterialLinker** es la carpeta de la tool descargada.
+Extensiones admitidas: `.tif`, `.tiff`, `.png`, `.exr`.
 
-## Configurar Aliases
+| Sufijo del mapa | Entrada Arnold | Espacio de color |
+|----------------|----------------|------------------|
+| `BaseColor` | `baseColor` | sRGB |
+| `Roughness` | `specularRoughness` | Raw |
+| `Metalness` | `metalness` | Raw |
+| `Normal` | `aiNormalMap` → `normalCamera` | Raw |
+| `Emissive` | `emissionColor` | sRGB; activar **Include Emissive maps** |
 
-El archivo [`material_link_map.json`](material_link_map.json) incluye el caso Rusty. Cada entrada de `mappings` relaciona el nombre del material con el token de sus texturas:
+La ventana omite Height. Los materiales deben existir previamente en la escena. Reconoce las conexiones que ya están correctas, de modo que repetir la operación no duplica sus nodos.
 
-```json
-{"maya_material": "M_face_Arnold", "texture_token": "Madera_Organico"}
-```
+### Antes / Después
 
-Por ejemplo, `Asset_Rusty2_M_Madera_Organico_BaseColor.tif` se conecta con `M_face_Arnold.baseColor`. `skip_maps` permite omitir mapas como Emissive y Height.
+![Esquema del mismo material Arnold antes y después de conectar cuatro mapas](assets/connections_before_after.png)
 
-## Antes / Después
-
-![Material Arnold antes de conectar sus texturas](assets/01_before.png)
-
-![El mismo material con las conexiones automáticas de texturas y normal](assets/02_after.png)
-
-### Asset Original del Curso
-
-![Rusty en la captura de look development del ejercicio original](assets/Rusty_reference.png)
-
-Rusty es el caso de uso original. Esta captura previa aporta contexto del asset; las capturas nuevas del Node Editor muestran la conexión automática del script en una escena de verificación separada.
+Este **esquema de conexiones** muestra el mismo material `M_face_Arnold`: antes, esas entradas no tienen texturas; después, los cuatro mapas alimentan sus entradas correspondientes. Normal pasa por un nodo `aiNormalMap`. Las conexiones se comprobaron en Maya; el esquema explica esa red.
 
 ## Requisitos y Verificación
 
-- Maya con Arnold / MtoA y Python 3.10+.
-- Sin paquetes Python externos.
-- Verificado en **Maya 2027**: dry-run sin cambios de nodos, 12 conexiones correctas, espacios de color, normal maps y segunda ejecución sin nodos nuevos.
-
-El prototipo usa **JSON y Script Editor**.
+- Maya con Arnold / MtoA y Python 3.10+; sin paquetes Python adicionales.
+- Verificado en **Maya 2027**: preview sin cambios en la escena, 12 mapas conectados en tres materiales, espacios de color y nodos de normal correctos, repetición sin nodos duplicados y Undo de un solo paso.
+- La selección manual de materiales y texturas funciona sin editar JSON. Cambiar la carpeta de texturas mantiene intacto el proyecto activo de Maya.
 
 <details>
-<summary>Comprobación offline y archivos</summary>
+<summary>Avanzado: configuración JSON y runners Python</summary>
 
-Una vez copiados los scripts y la configuración en un proyecto con `sourceimages/`:
+El motor original de conexiones sigue disponible en [`scripts/material_linker/`](scripts/material_linker/). [`material_link_map.json`](material_link_map.json) contiene el preset de Rusty y también se puede usar con `run_linker.run(config_path, dry_run=True)` antes de aplicar con `dry_run=False`.
 
-```bash
-python scripts/material_linker/validate_textures.py
-```
+[`examples/load_in_maya.py`](examples/load_in_maya.py) documenta el flujo Python basado en proyecto: scripts dentro de `scripts/`, JSON en la raíz y texturas en `sourceimages/`. Esa preparación es opcional cuando se usa la ventana.
 
-Comprueba nombres y disponibilidad de mapas; no comprueba las conexiones de la escena.
-
-El núcleo está en `core.py`, el runner genérico en `run_linker.py` y el ejemplo de carga en `examples/load_in_maya.py`. `config_schema.json` conserva la referencia de naming y bindings.
+[`config_schema.json`](scripts/material_linker/config_schema.json) conserva la referencia de nombres y bindings. [`validate_textures.py`](scripts/material_linker/validate_textures.py) comprueba nombres de archivos offline; no revisa conexiones de la escena.
 
 </details>
+
+### Asset Original del Curso
+
+![Rusty en el ejercicio original de look development en Maya](assets/Rusty_reference.png)
+
+Rusty es el caso de uso original del curso. Esta imagen de look development aporta contexto del asset; la demo de la ventana muestra la operación de conexión de texturas.
 
 Desarrollado por **Igor G. Streiff** para el curso Tech Art de Max Sarlija Academy. [Licencia MIT](LICENSE).
