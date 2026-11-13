@@ -1,14 +1,12 @@
 [English](README.md) · [Español](README.es.md)
 
-<img src="assets/matlink-logo.png" align="right" width="130" alt="MatLink">
-
 # MatLink
+
+![MatLink — Material Linker para Maya](assets/Banner_MaterialLinker.png)
 
 **Conectá las texturas PBR con los materiales Arnold de Maya.**
 
 MatLink automatiza el enlace entre los archivos de textura y los shaders. Asociás los texture sets con tus materiales, revisás el lote y conectás los mapas con los nodos y color spaces correspondientes.
-
-<br clear="all">
 
 ![Rusty renderizado en Arnold](assets/rusty-lookdev.png)
 
@@ -32,4 +30,4 @@ Implementado en Python, con el motor de conexiones separado de la interfaz de Ma
 
 Requiere Maya con Arnold / MtoA y Python 3.10+. Probado en Maya 2027.
 
-[Instalación y uso](docs/USAGE.es.md) · [Motor de conexiones](scripts/material_linker/core.py) · [Interfaz de Maya](scripts/material_linker/ui.py)
+[Instalación y uso](docs/USAGE.es.md)

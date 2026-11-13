@@ -46,14 +46,6 @@ Enable **Include Emissive maps** to connect emission. The window skips Height ma
 
 Use **Scan / Refresh** after adding materials or changing texture exports.
 
-## Reading the result
-
-- **Connect textures is disabled:** run Preview for the current selection and resolve its reported issues. Changes after Preview require another preview.
-- **No matching exports:** check the filename pattern, extension and selected folder.
-- **A material has no automatic match:** choose its texture set manually. The material and export names do not need to be identical.
-- **Already correct:** the map is already connected to the expected input; MatLink skips that connection rather than creating another node.
-- **Connection failed:** inspect the error in the report. Maya Undo remains available for changes already applied.
-
 ## Python workflow
 
 The connection engine also accepts a JSON mapping. [`material_link_map.json`](../material_link_map.json) contains a Rusty preset; [`config_schema.json`](../scripts/material_linker/config_schema.json) describes the fields and bindings.

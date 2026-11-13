@@ -46,14 +46,6 @@ Activá **Include Emissive maps** para conectar emisión. La ventana omite los m
 
 Usá **Scan / Refresh** si agregás materiales o cambiás las texturas exportadas.
 
-## Interpretar el resultado
-
-- **Connect textures deshabilitado:** ejecutá Preview para la selección actual y resolvé los problemas indicados. Si hacés cambios después de Preview, necesitás otra revisión.
-- **No matching exports:** revisá el formato de nombres, las extensiones y la carpeta elegida.
-- **Un material no se asocia automáticamente:** elegí su texture set desde el selector. No es necesario que el material y la exportación tengan nombres idénticos.
-- **Already correct:** el mapa ya está conectado a la entrada prevista; MatLink omite esa conexión en lugar de crear otro nodo.
-- **Connection failed:** revisá el error en el reporte. Maya Undo sigue disponible para los cambios que llegaron a aplicarse.
-
 ## Flujo Python
 
 El motor también acepta asociaciones mediante JSON. [`material_link_map.json`](../material_link_map.json) contiene un preset de Rusty; [`config_schema.json`](../scripts/material_linker/config_schema.json) describe los campos y las conexiones.
