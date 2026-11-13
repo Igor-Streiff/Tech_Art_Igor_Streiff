@@ -16,7 +16,7 @@ MatLink handles the repetitive wiring between texture files and shaders. Match t
 2. **Preview.** Review the planned connections and any missing maps before the scene changes.
 3. **Connect.** Apply the batch. Correct existing links are skipped; one Maya Undo reverses the operation.
 
-<img src="assets/ui_preview.png" width="700" alt="MatLink in Maya: three material-to-texture-set matches and a preview of twelve connections">
+https://github.com/user-attachments/assets/c8102ecc-2d3f-4548-a82f-1099961afc85
 
 ## Development
 

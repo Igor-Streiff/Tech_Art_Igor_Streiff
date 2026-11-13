@@ -16,7 +16,7 @@ MatLink automatiza el enlace entre los archivos de textura y los shaders. Asoci�
 2. **Revisar.** Preview muestra las conexiones previstas y los mapas faltantes antes de modificar la escena.
 3. **Conectar.** Aplicá el lote. Las conexiones ya correctas se omiten; un Undo de Maya revierte la operación.
 
-<img src="assets/ui_preview.png" width="700" alt="MatLink en Maya: tres materiales asociados a sus texture sets y una revisión de doce conexiones">
+https://github.com/user-attachments/assets/c8102ecc-2d3f-4548-a82f-1099961afc85
 
 ## Desarrollo
 
